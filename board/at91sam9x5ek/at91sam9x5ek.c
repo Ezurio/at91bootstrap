@@ -141,6 +141,9 @@ static void ddramc_init(void)
 #ifdef CONFIG_HW_INIT
 void hw_init(void)
 {
+	/* Make sure NAND WP# pin is low ASAP */
+	pio_set_gpio_output(AT91C_PIN_PD(10), 0);
+
 	/* Disable watchdog */
 	writel(AT91C_WDTC_WDDIS, AT91C_BASE_WDT + WDTC_MR);
 
@@ -256,7 +259,7 @@ void nandflash_hw_init(void)
 		{"NANDALE",	CONFIG_SYS_NAND_ALE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCLE",	CONFIG_SYS_NAND_CLE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCS", 	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
-		{"NWP", AT91C_PIN_PD(10), 1, PIO_PULLUP, PIO_OUTPUT},
+		{"NWP", AT91C_PIN_PD(10), 0, PIO_DEFAULT, PIO_OUTPUT},
 		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
