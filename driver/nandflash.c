@@ -200,11 +200,11 @@ static void config_nand_ooblayout(struct nand_ooblayout *layout, struct nand_chi
 		layout->badblockpos = 0;
 		oobsize = chip->oobsize;
 #ifdef CONFIG_USE_PMECC
-		layout->eccbytes = 16;
+		layout->eccbytes = 28;
 #else
 		layout->eccbytes = 24;
 #endif
-		layout->oobavail_offset = 1;
+		layout->oobavail_offset = 30;
 		break;
 
 	case 4096:
@@ -504,7 +504,7 @@ static int nandflash_get_type(struct nand_info *nand)
 static int init_pmecc_descripter(struct _PMECC_paramDesc_struct *pmecc_params, struct nand_info *nand)
 {
 	if ((nand->pagesize == 2048) || (nand->pagesize == 4096)) {
-		pmecc_params->errBitNbrCapability = AT91C_PMECC_BCH_ERR2; 	/* Error Correct Capability */
+		pmecc_params->errBitNbrCapability = AT91C_PMECC_BCH_ERR4; 	/* Error Correct Capability */
 		pmecc_params->sectorSize = AT91C_PMECC_SECTORSZ_512;		/* Sector Size */
 		pmecc_params->nandWR = AT91C_PMECC_NANDWR_0;			/* NAND read access */
 		pmecc_params->spareEna = AT91C_PMECC_SPAREENA_DIS;		/* for NAND read access,the spare area is skipped  */

@@ -75,12 +75,12 @@ static void initialize_dbgu(void)
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_16_BITS
-			| AT91C_DDRC2_MD_DDR2_SDRAM);
+			| AT91C_DDRC2_MD_LP_DDR_SDRAM);
 
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9 /* 10 column bits(1K) */
 			| AT91C_DDRC2_NR_13              /* 13 row bits (8K) */
 			| AT91C_DDRC2_CAS_3              /* CAS Latency 3 */
-			| AT91C_DDRC2_NB_BANKS_8         /* 8 banks */
+			| AT91C_DDRC2_NB_BANKS_4         /* 4 banks */
 			| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
 			| AT91C_DDRC2_DECOD_INTERLEAVED);/*Interleaved decode*/
 
@@ -256,15 +256,16 @@ void nandflash_hw_init(void)
 		{"NANDALE",	CONFIG_SYS_NAND_ALE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCLE",	CONFIG_SYS_NAND_CLE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCS", 	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
+		{"NWP", AT91C_PIN_PD(10), 1, PIO_PULLUP, PIO_OUTPUT},
 		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
 	reg = readl(AT91C_BASE_CCFG + CCFG_EBICSA);
 	reg |= AT91C_EBI_CS3A_SM;
-	if ((get_cm_rev() == 'A') && (get_cm_vendor() == VENDOR_EMBEST))
+//	if ((get_cm_rev() == 'A') && (get_cm_vendor() == VENDOR_EMBEST))
 		reg &= ~AT91C_EBI_NFD0_ON_D16;
-	else
-		reg |= (AT91C_EBI_DDR_MP_EN | AT91C_EBI_NFD0_ON_D16);
+//	else
+//		reg |= (AT91C_EBI_DDR_MP_EN | AT91C_EBI_NFD0_ON_D16);
 
 	reg &= ~AT91C_EBI_DRV;
 	writel(reg, AT91C_BASE_CCFG + CCFG_EBICSA);
@@ -294,10 +295,10 @@ void nandflash_hw_init(void)
 		AT91C_BASE_SMC + SMC_CTRL3);
 
 	/* Configure the PIO controller */
-	if ((get_cm_rev() == 'A') && (get_cm_vendor() == VENDOR_EMBEST))
+//	if ((get_cm_rev() == 'A') && (get_cm_vendor() == VENDOR_EMBEST))
 		pio_configure(nand_pins_lo);
-	else
-		pio_configure(nand_pins_hi);
+//	else
+//		pio_configure(nand_pins_hi);
 
 	writel((1 << AT91C_ID_PIOC_D), (PMC_PCER + AT91C_BASE_PMC));
 }
