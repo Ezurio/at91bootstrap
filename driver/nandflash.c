@@ -204,7 +204,7 @@ static void config_nand_ooblayout(struct nand_ooblayout *layout, struct nand_chi
 #else
 		layout->eccbytes = 24;
 #endif
-		layout->oobavail_offset = 30;
+		layout->oobavail_offset = 1;
 		break;
 
 	case 4096:
