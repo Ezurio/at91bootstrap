@@ -19,7 +19,7 @@ BINDIR:=$(TOPDIR)/binaries
 
 DATE := $(shell date)
 VERSION := 3.4
-REVISION := 4
+REVISION := 4-laird2
 
 noconfig_targets:= menuconfig defconfig $(CONFIG) oldconfig
 
@@ -138,7 +138,7 @@ endif
 
 obj=build/$(BOARDNAME)/
 
-BOOT_NAME=$(BOARDNAME)-$(PROJECT)$(CARD_SUFFIX)boot-$(IMAGE_NAME)-$(VERSION)$(REV)
+BOOT_NAME=$(BOARDNAME)-$(PROJECT)$(CARD_SUFFIX)boot-$(IMAGE_NAME)
 AT91BOOTSTRAP:=$(BINDIR)/$(BOOT_NAME).bin
 
 ifeq ($(IMAGE),)
