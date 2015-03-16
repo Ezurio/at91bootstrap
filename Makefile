@@ -287,6 +287,15 @@ $(AT91BOOTSTRAP): $(OBJS)
 	@$(LD) $(LDFLAGS) -n -o $(BINDIR)/$(BOOT_NAME).elf $(OBJS)
 #	@$(OBJCOPY) --strip-debug --strip-unneeded $(BINDIR)/$(BOOT_NAME).elf -O binary $(BINDIR)/$(BOOT_NAME).bin
 	@$(OBJCOPY) --strip-all $(BINDIR)/$(BOOT_NAME).elf -O binary $@
+	@$(OBJCOPY) --strip-all $(BINDIR)/$(BOOT_NAME).elf -O binary $@_nohead.bin
+ifneq ($(PMECC_HEADER),)
+	@echo "Adding PMECC header"
+	@cat $(PMECC_HEADER) > $@
+	@cat $@_nohead.bin >> $@
+else
+	@mv $@_nohead.bin  $@
+endif
+
 	@ln -sf $(BOOT_NAME).bin ${BINDIR}/${SYMLINK}
 
 %.o : %.c .config

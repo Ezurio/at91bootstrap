@@ -42,6 +42,15 @@
 #include "act8865.h"
 #include "secure.h"
 
+#include "gpio.h"
+
+#define LED0 (12)
+#define LED1 (24)
+#define LED2 (26)  // Using LED2 for SDA
+#define LED3 (22)
+#define LED4 (28)
+#define BITOUT (10)
+
 extern int load_kernel(struct image_info *img_info);
 
 typedef int (*load_function)(struct image_info *img_info);
@@ -82,6 +91,31 @@ static void display_banner (void)
 	usart_puts("\n");
 	usart_puts("\n");
 }
+void setup_gpios(void)
+{
+// 		PIOA->PIO_IDR = 0x15401400;  // Disable interrupts
+// 		PIOA->PIO_PUER = 0x15401400; // Set pull-ups
+// 		PIOA->PIO_OER = 0x15401400;  // Make outputs
+// 		PIOA->PIO_SODR = 0x15401400; // "Clear" the LEDs by setting high
+// 		PIOA->PIO_PER = 0x15401400;  // Enable them as GPIO
+// 
+// 		PIOA->PIO_CODR = 0x15401400; // Turn on all LEDs
+// 
+// 		LED_OFF(LED0);
+// 		LED_OFF(LED1);
+// 		LED_OFF(LED2);
+// 		LED_OFF(LED3);
+// 		LED_OFF(LED4);
+// 		LED_OFF(BITOUT);
+
+	pio_set_gpio_output(10, 1);
+	pio_set_gpio_output(12, 1);
+	pio_set_gpio_output(22, 1);
+	pio_set_gpio_output(24, 1);
+	pio_set_gpio_output(26, 1);
+	pio_set_gpio_output(28, 1);
+
+}
 
 int main(void)
 {
@@ -91,6 +125,10 @@ int main(void)
 
 	char filename[FILENAME_BUF_LEN];
 	char of_filename[FILENAME_BUF_LEN];
+
+	/* Setup gpio pins */
+	setup_gpios();
+	pio_set_value(LED0, 0);
 
 	memset(&image, 0, sizeof(image));
 	memset(filename, 0, FILENAME_BUF_LEN);
