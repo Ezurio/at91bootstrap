@@ -71,6 +71,33 @@ static inline short fill_hex_int(char *buf, unsigned int data)
 	return num;
 }
 
+static inline short fill_hex_byte(char *buf, unsigned int idata)
+{
+	short num = 0;
+	unsigned char data = idata & 0xFF;
+
+	if ((data >> 4) > 0) {
+		if (((data >> 4) & 0xF) < 10)
+			fill_char(buf, ((data >> 4) & 0xF) + '0');
+		else
+			fill_char(buf, ((data >> 4) & 0xF) - 10 + 'a');
+	}
+	else {
+		fill_char(buf, '0');
+	}
+
+	num++;
+	buf++;
+
+	if ((data & 0xF) < 10)
+		fill_char(buf, (data & 0xF) + '0');
+	else
+		fill_char(buf, (data & 0xF) - 10 + 'a');
+	num++;
+
+	return num;
+}
+
 int dbg_log(const char level, const char *fmt_str, ...)
 {
 	va_list ap;
@@ -101,6 +128,12 @@ int dbg_log(const char level, const char *fmt_str, ...)
 				num = fill_hex_int(p, va_arg(ap, unsigned int));
 
 				break;
+			case 'b':
+				num = fill_hex_byte(p, va_arg(ap, unsigned int));
+
+				break;
+
+
 			case 's':
 				num = fill_string(p, va_arg(ap, char *));
 
