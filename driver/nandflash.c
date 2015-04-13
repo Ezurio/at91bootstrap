@@ -91,6 +91,77 @@ typedef int (*PMECC_CorrectionAlgo_Rom_Func) (unsigned long pPMECC,
 
 PMECC_CorrectionAlgo_Rom_Func pmecc_correction_algo;
 
+
+void dbg_printbuf(void * buffer, unsigned int buffsize)
+{
+	int index = 0;
+	int pos = 0;
+	unsigned char * ptr = (unsigned char *)buffer;
+
+	dbg_log(1, "Printing buffer %x\n\r\t", buffer);
+
+	while( index < buffsize )
+	{
+		// print one byte
+		dbg_log(1, "%b ", ptr[index]);
+
+		index++;
+		pos++;
+
+		// Extra pad between double-word
+		if(pos == 8)
+			dbg_log(1, "  ");
+
+		// After 16 bytes, reset the line
+		if(pos >= 16 )
+		{
+			dbg_log(1, "\n\r\t");
+
+			pos = 0;
+		}
+	}
+
+	dbg_log(1, "\n\r");
+}
+
+void dbg_print_PMECC_param()
+{
+	dbg_log(1, "PMECC_paramDesc: \n\r");
+	dbg_log(1, "\t pageSize: %x\n\r", PMECC_paramDesc.pageSize );
+	dbg_log(1, "\t spareSize: %x\n\r", PMECC_paramDesc.spareSize );
+	dbg_log(1, "\t sectorSize: %x\n\r", PMECC_paramDesc.sectorSize );	// 0 for 512, 1 for 1024 bytes, like in PMECCFG register
+	dbg_log(1, "\t errBitNbrCapability: %x\n\r", PMECC_paramDesc.errBitNbrCapability );
+	dbg_log(1, "\t eccSizeByte: %x\n\r", PMECC_paramDesc.eccSizeByte );
+	dbg_log(1, "\t eccStartAddress: %x\n\r", PMECC_paramDesc.eccStartAddress );
+	dbg_log(1, "\t eccEndAddress: %x\n\r", PMECC_paramDesc.eccEndAddress );
+
+	dbg_log(1, "\t nandWR: %x\n\r", PMECC_paramDesc.nandWR );
+	dbg_log(1, "\t spareEna: %x\n\r", PMECC_paramDesc.spareEna );
+	dbg_log(1, "\t modeAuto: %x\n\r", PMECC_paramDesc.modeAuto );
+	dbg_log(1, "\t clkCtrl: %x\n\r", PMECC_paramDesc.clkCtrl );
+	dbg_log(1, "\t interrupt: %x\n\r", PMECC_paramDesc.interrupt );
+
+	dbg_log(1, "\t tt: %x\n\r", PMECC_paramDesc.tt );
+	dbg_log(1, "\t mm: %x\n\r", PMECC_paramDesc.mm );
+	dbg_log(1, "\t nn: %x\n\r", PMECC_paramDesc.nn );
+
+	dbg_log(1, "\t alpha_to: %x\n\r", PMECC_paramDesc.alpha_to );
+	dbg_log(1, "\t index_of: %x\n\r", PMECC_paramDesc.index_of );
+
+// 	short partialSyn[100];
+// 	short si[100];
+// 
+// 	/* sigma table */
+// 	short smu[TT_MAX + 2][2 * TT_MAX + 1];
+// 	/* polynom order */
+// 	short lmu[TT_MAX + 1];
+
+}
+
+
+
+
+
 static int pmecc_readl(unsigned int reg)
 {
 	return(readl(AT91C_BASE_PMECC + reg));
@@ -503,6 +574,9 @@ static int nandflash_get_type(struct nand_info *nand)
 #ifdef CONFIG_USE_PMECC
 static int init_pmecc_descripter(struct _PMECC_paramDesc_struct *pmecc_params, struct nand_info *nand)
 {
+	dbg_log(1, "init_pmecc_descripter() \n\r\n\r Initial PMECC_param\n\r");
+	dbg_print_PMECC_param();
+
 	if ((nand->pagesize == 2048) || (nand->pagesize == 4096)) {
 		pmecc_params->errBitNbrCapability = AT91C_PMECC_BCH_ERR4; 	/* Error Correct Capability */
 		pmecc_params->sectorSize = AT91C_PMECC_SECTORSZ_512;		/* Sector Size */
@@ -529,6 +603,9 @@ static int init_pmecc_descripter(struct _PMECC_paramDesc_struct *pmecc_params, s
 			pmecc_params->pageSize = AT91C_PMECC_PAGESIZE_4SEC;
 		else
 			pmecc_params->pageSize = AT91C_PMECC_PAGESIZE_8SEC;
+
+		dbg_log(1, "after setup...\n\r");
+		dbg_print_PMECC_param();
 
 		return 0;
 	} else {
@@ -636,22 +713,32 @@ static int pmecc_process(struct nand_info *nand, unsigned char *buffer)
 	erris = pmecc_readl(PMECC_ISR);
 	if (erris) {
 		if (check_pmecc_ecc_data(nand, buffer) == -1){
-			//dbg_log(1, "PMECC: reading All-0xFF page\n\r");
+			dbg_log(1, "PMECC: reading All-0xFF page\n\r");
 			return 0;
 		}
 
 		dbg_log(1, "PMECC: sector bits %d corrupted, Now correcting...\n\r", erris);
+		dbg_print_PMECC_param();
+		dbg_log(1, "Previous buff: \n\r");
+		dbg_printbuf(buffer, nand->pagesize);
 		result = (*pmecc_correction_algo)(AT91C_BASE_PMECC,
 			AT91C_BASE_PMERRLOC,
 			&PMECC_paramDesc,
 			erris,
 			buffer);
 
+		dbg_log(1, "fixed buff: \n\r");
+		dbg_printbuf(buffer, nand->pagesize);
 		if (result != 0) {
 			dbg_log(1, "PMECC: failed to correct corrupted bits!\n\r");
 			ret =  ECC_CORRECT_ERROR;
 		}
 	}
+// 	else
+// 	{
+// 		if (buffer == 0x23f00000 )
+// 			dbg_printbuf(buffer, nand->pagesize);
+// 	}
 
 	return ret;
 }
@@ -753,6 +840,9 @@ static int nand_read_sector(struct nand_info *nand,
 }
 
 #else /* large blocks */
+
+///  SDd -> We use "large blocks"
+
 static int nand_read_sector(struct nand_info *nand,
 				unsigned int row_address,
 				unsigned char *buffer, 
@@ -764,6 +854,7 @@ static int nand_read_sector(struct nand_info *nand,
 	unsigned char *pbuf = buffer;
 
 #ifdef CONFIG_USE_PMECC
+/// SDd -> This is set
 	unsigned int usepmecc = 0;
 
 	if ((zone_flag & ZONE_DATA) == ZONE_DATA) {
@@ -797,7 +888,10 @@ static int nand_read_sector(struct nand_info *nand,
 		return -1;
 	}
 
+	dbg_log(1, "flag, bytes, row, column: %b, %d, %x, %x", zone_flag, readbytes, row_address, column_address );
+
 	nand_cs_enable();
+	dbg_log(1, ";    buswidth: %x\n\r", nand->buswidth );
 
 	if (nand->buswidth)
 		nand_command16(CMD_READ_1);
@@ -884,6 +978,7 @@ static int nand_read_page(struct nand_info *nand,
 	unsigned int row_address = block * nand->pages_block + page;
 
 #ifndef CONFIG_ENABLE_SW_ECC
+	// SDd -> we use CONFIG_ENABLE_SW_ECC
 	return nand_read_sector(nand, row_address, buffer, ZONE_DATA);
 #else
 
