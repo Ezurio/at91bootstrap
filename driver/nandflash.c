@@ -77,25 +77,6 @@ static struct nand_ooblayout nand_oob_layout;
 
 static struct nand_chip nand_chip_default;
 
-static void buf_dump(unsigned char *buf, int offset, int len)
-{
-	int i = 0;
-	for (i = 0; i < len; i++) {
-		if (i % 16 == 0)
-			dbg_loud("\n");
-		dbg_loud("%u ", buf[offset + i]);
-	}
-}
-
-static void page_dump(unsigned char *buf, int page_size, int oob_size)
-{
-	dbg_loud("Dump Error Page: Data:\n");
-	buf_dump(buf, 0, page_size);
-	dbg_loud("\nOOB:\n");
-	buf_dump(buf, page_size, oob_size);
-	dbg_loud("\n");
-}
-
 /*
  * NAND Commands
  */

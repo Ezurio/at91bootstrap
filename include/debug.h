@@ -76,4 +76,7 @@ static inline int dbg_printf(const char *fmt_str, ...) { return 0; }
 #define dbg_very_loud(fmt_str, arg...)		\
 	dbg_log(DEBUG_VERY_LOUD, fmt_str , ## arg)
 
+void buf_dump(unsigned char *buf, int offset, int len);
+void page_dump(unsigned char *buf, int page_size, int oob_size);
+
 #endif /* #ifndef __DEBUG_H__ */

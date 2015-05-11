@@ -124,3 +124,25 @@ int dbg_printf(const char *fmt_str, ...)
 
 	return 0;
 }
+
+void buf_dump(unsigned char *buf, int offset, int len)
+{
+	int i = 0;
+	for (i = 0; i < len; i++) {
+		if (i % 16 == 0)
+			dbg_loud("\n");
+		dbg_loud("%u ", buf[offset + i]);
+	}
+}
+
+void page_dump(unsigned char *buf, int page_size, int oob_size)
+{
+	dbg_loud("Dump Data:\n");
+	buf_dump(buf, 0, page_size);
+	if( oob_size > 0 )
+	{
+		dbg_loud("\nOOB:\n");
+		buf_dump(buf, page_size, oob_size);
+		dbg_loud("\n");
+	}
+}
