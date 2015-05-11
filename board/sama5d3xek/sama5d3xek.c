@@ -77,7 +77,7 @@ static void initialize_dbgu(void)
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
-				| AT91C_DDRC2_MD_DDR2_SDRAM);
+				| AT91C_DDRC2_MD_LP_DDR_SDRAM);
 
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
 				| AT91C_DDRC2_NR_14
@@ -85,7 +85,7 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
 				| AT91C_DDRC2_DIS_DLL_DISABLED   /* DLL not disabled */
 				| AT91C_DDRC2_ENRDM_ENABLE       /* Phase error correction is enabled */
-				| AT91C_DDRC2_NB_BANKS_8
+				| AT91C_DDRC2_NB_BANKS_4
 				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
 				| AT91C_DDRC2_DECOD_INTERLEAVED  /* Interleaved decoding */
 				| AT91C_DDRC2_UNAL_SUPPORTED);   /* Unaligned access is supported */
@@ -606,6 +606,7 @@ void nandflash_hw_init(void)
 	const struct pio_desc nand_pins[] = {
 		{"NANDALE", AT91C_PIN_PE(21), 0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCLE", AT91C_PIN_PE(22), 0, PIO_PULLUP, PIO_PERIPH_A},
+		{"NWP", AT91C_PIN_PE(14), 0, PIO_PULLUP, PIO_OUTPUT},
 		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
