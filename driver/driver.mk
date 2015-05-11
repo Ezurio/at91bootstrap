@@ -21,6 +21,8 @@ COBJS-$(CONFIG_SDRAM)		+= $(DRIVERS_SRC)/sdramc.o
 COBJS-$(CONFIG_SDDRC)		+= $(DRIVERS_SRC)/sddrc.o
 COBJS-$(CONFIG_DDRC)		+= $(DRIVERS_SRC)/ddramc.o
 
+COBJS-$(CONFIG_MEMTEST)		+= $(DRIVERS_SRC)/memtest.o
+
 COBJS-$(CONFIG_SDCARD)		+= $(DRIVERS_SRC)/at91_mci.o
 
 COBJS-$(CONFIG_SDCARD)		+= $(DRIVERS_SRC)/mci_media.o

@@ -42,6 +42,8 @@
 #include "act8865.h"
 #include "secure.h"
 
+#include "memtest.h"
+
 #include "gpio.h"
 
 #define LED0 (12)
@@ -50,6 +52,8 @@
 #define LED3 (22)
 #define LED4 (28)
 #define BITOUT (10)
+
+#define CONFIG_MEMTEST 1
 
 extern int load_kernel(struct image_info *img_info);
 
@@ -122,6 +126,7 @@ int main(void)
 	struct image_info image;
 	char *media_str = NULL;
 	int ret;
+	void * retptr;
 
 	char filename[FILENAME_BUF_LEN];
 	char of_filename[FILENAME_BUF_LEN];
@@ -207,7 +212,11 @@ int main(void)
 	image.dest -= sizeof(at91_secure_header_t);
 #endif
 
+#if !defined(CONFIG_MEMTEST)
 	ret = (*load_image)(&image);
+#else
+	ret = 1;
+#endif
 
 #if defined(CONFIG_SECURE)
 	if (!ret)
@@ -241,7 +250,37 @@ int main(void)
 
 	/* point never reached with TZ support */
 #endif
-	dbg_info("    SDd: JUMP_ADDR = %d\n", JUMP_ADDR);
 
+#if defined(CONFIG_MEMTEST)
+	dbg_info("Doing memtest on load area %d\n", image.dest);
+
+	dbg_info("Testing databus\n");
+	ret = memTestDataBus( (void *)image.dest );
+	if( ret != 0 )
+	{
+		dbg_info( "    FAILED. Pattern == %d\n", ret );
+	}
+
+	dbg_info("Testing address bus...\n");
+	retptr = memTestAddressBus((void *)image.dest, image.length);
+	if( retptr != NULL )
+	{
+		dbg_info( "    FAILED. At address == %d\n", retptr );
+		buf_dump((unsigned char *)retptr, 0, 128);
+	}
+
+	dbg_info("Testing device...\n");
+	retptr = memTestDevice((void *)image.dest, image.length);
+	if( retptr != NULL )
+	{
+		dbg_info( "    FAILED. At address == %d\n", retptr );
+		buf_dump((unsigned char *)retptr, 0, 128);
+	}
+
+	while (1);
+	/* point never reached with memtest */
+#endif
+
+	dbg_info("    SDd: JUMP_ADDR = %d\n", JUMP_ADDR);
 	return JUMP_ADDR;
 }
