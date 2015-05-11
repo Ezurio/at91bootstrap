@@ -231,14 +231,17 @@ int main(void)
 	}
 
 #ifdef CONFIG_SCLK
+	dbg_info("    SDd: CONFIG_SCLK\n");
 	slowclk_switch_osc32();
 #endif
 
 #if defined(CONFIG_ENTER_NWD)
+	dbg_info("    SDd: CONFIG_ENTER_NWD\n");
 	switch_normal_world();
 
 	/* point never reached with TZ support */
 #endif
+	dbg_info("    SDd: JUMP_ADDR = %d\n", JUMP_ADDR);
 
 	return JUMP_ADDR;
 }

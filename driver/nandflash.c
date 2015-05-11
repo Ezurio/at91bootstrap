@@ -77,6 +77,25 @@ static struct nand_ooblayout nand_oob_layout;
 
 static struct nand_chip nand_chip_default;
 
+static void buf_dump(unsigned char *buf, int offset, int len)
+{
+	int i = 0;
+	for (i = 0; i < len; i++) {
+		if (i % 16 == 0)
+			dbg_loud("\n");
+		dbg_loud("%u ", buf[offset + i]);
+	}
+}
+
+static void page_dump(unsigned char *buf, int page_size, int oob_size)
+{
+	dbg_loud("Dump Error Page: Data:\n");
+	buf_dump(buf, 0, page_size);
+	dbg_loud("\nOOB:\n");
+	buf_dump(buf, page_size, oob_size);
+	dbg_loud("\n");
+}
+
 /*
  * NAND Commands
  */
@@ -640,6 +659,8 @@ static int nand_read_sector(struct nand_info *nand,
 	return 0;
 }
 #else /* large blocks */
+static int dumpbuff = 0;
+
 static int nand_read_sector(struct nand_info *nand,
 				unsigned int row_address,
 				unsigned char *buffer, 
@@ -710,6 +731,12 @@ static int nand_read_sector(struct nand_info *nand,
 		for (i = 0; i < readbytes; i++)
 			*pbuf++ = read_byte();
 
+if(dumpbuff < 1)
+{
+	dbg_info("Dumping nand read before pmecc\n");
+	page_dump(buffer, nand->pagesize, nand->oobsize );
+}
+
 #ifdef CONFIG_USE_PMECC
 		if (usepmecc)
 			ret = pmecc_process(nand, buffer);
@@ -717,6 +744,13 @@ static int nand_read_sector(struct nand_info *nand,
 	}
 
 	nand_cs_disable();
+
+if(dumpbuff < 1)
+{
+	dbg_info("Dumping nand read after pmecc\n");
+	page_dump(buffer, nand->pagesize, nand->oobsize );
+	dumpbuff++;
+}
 
 	return ret;
 }
