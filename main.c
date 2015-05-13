@@ -53,7 +53,7 @@
 #define LED4 (28)
 #define BITOUT (10)
 
-#define CONFIG_MEMTEST 1
+//#define CONFIG_MEMTEST 1
 
 extern int load_kernel(struct image_info *img_info);
 
@@ -240,7 +240,7 @@ int main(void)
 	}
 
 #ifdef CONFIG_SCLK
-	dbg_info("    SDd: CONFIG_SCLK\n");
+//	dbg_info("    SDd: CONFIG_SCLK\n");
 	slowclk_switch_osc32();
 #endif
 
@@ -252,6 +252,8 @@ int main(void)
 #endif
 
 #if defined(CONFIG_MEMTEST)
+	image.dest = 0x20000000;
+	image.length = 0x100000;
 	dbg_info("Doing memtest on load area %d\n", image.dest);
 
 	dbg_info("Testing databus\n");

@@ -46,6 +46,16 @@
 #include "arch/at91_ddrsdrc.h"
 #include "sama5d3xek.h"
 
+#define LED0 (12)
+#define LED1 (24)
+#define LED2 (26)  // Using LED2 for SDA
+#define LED3 (22)
+#define LED4 (28)
+#define BITOUT (10)
+
+#define LED_ON (x) 	pio_set_value( (x), 0);
+#define LED_OFF (x) 	pio_set_value( (x), 1);
+
 #ifdef CONFIG_USER_HW_INIT
 extern void hw_init_hook(void);
 #endif
@@ -73,24 +83,35 @@ static void initialize_dbgu(void)
 	usart_init(BAUDRATE(MASTER_CLOCK, 115200));
 }
 
-#ifdef CONFIG_DDR2
+#ifdef CONFIG_DDR2 /* This is defined */
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
 				| AT91C_DDRC2_MD_LP_DDR_SDRAM);
 
-	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
-				| AT91C_DDRC2_NR_14
+	ddramc_config->cr = (AT91C_DDRC2_NC_DDR9_SDR8
+				| AT91C_DDRC2_NR_13
 				| AT91C_DDRC2_CAS_3
 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
-				| AT91C_DDRC2_DIS_DLL_DISABLED   /* DLL not disabled */
-				| AT91C_DDRC2_ENRDM_ENABLE       /* Phase error correction is enabled */
 				| AT91C_DDRC2_NB_BANKS_4
 				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
-				| AT91C_DDRC2_DECOD_INTERLEAVED  /* Interleaved decoding */
-				| AT91C_DDRC2_UNAL_SUPPORTED);   /* Unaligned access is supported */
+				| AT91C_DDRC2_DECOD_INTERLEAVED /* Interleaved decoding */
+				| AT91C_DDRC2_DQMS_NOT_SHARED
+				| AT91C_DDRC2_ENRDM_DISABLE
+				| AT91C_DDRC2_UNAL_UNSUPPORTED);   /* Unaligned access is NOT supported */
 
-#if defined(CONFIG_BUS_SPEED_133MHZ)
+// 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
+// 				| AT91C_DDRC2_NR_13
+// 				| AT91C_DDRC2_CAS_3
+// 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
+// *				| AT91C_DDRC2_DIS_DLL_DISABLED   /* DLL not disabled */
+// *				| AT91C_DDRC2_ENRDM_ENABLE       /* Phase error correction is enabled */
+// 				| AT91C_DDRC2_NB_BANKS_4
+// *				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
+// 				| AT91C_DDRC2_DECOD_INTERLEAVED  /* Interleaved decoding */
+// *				| AT91C_DDRC2_UNAL_SUPPORTED);   /* Unaligned access is supported */
+
+#if defined(CONFIG_BUS_SPEED_133MHZ)  /* This is defined */
 	/*
 	 * The DDR2-SDRAM device requires a refresh every 15.625 us or 7.81 us.
 	 * With a 133 MHz frequency, the refresh timer count register must to be
@@ -101,24 +122,24 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 
 	/* One clock cycle @ 133 MHz = 7.5 ns */
 	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
-			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
+			| AT91C_DDRC2_TRCD_(3)		/* 2 * 7.5 = 22.5 ns */
 			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 = 15   ns */
 			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 = 75   ns */
-			| AT91C_DDRC2_TRP_(2)		/* 2 * 7.5 = 15   ns */
+			| AT91C_DDRC2_TRP_(3)		/* 2 * 7.5 = 15   ns */
 			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5 = 15   ns */
 			| AT91C_DDRC2_TWTR_(2)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
-			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
-			| AT91C_DDRC2_TXSNR_(28)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
-			| AT91C_DDRC2_TRFC_(26));	/* 26 * 7.5 = 195 ns */
+			| AT91C_DDRC2_TXSRD_(208)	/* 200 clock cycles */
+			| AT91C_DDRC2_TXSNR_(16)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
+			| AT91C_DDRC2_TRFC_(14));	/* 26 * 7.5 = 195 ns */
 
-	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(10)	/* 7 * 7.5 = 52.5 ns */
 			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
-			| AT91C_DDRC2_TRPA_(2)		/* 2 * 7.5 = 15 ns */
+			| AT91C_DDRC2_TRPA_(3)		/* 2 * 7.5 = 15 ns */
 			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
-			| AT91C_DDRC2_TXARD_(8));	/* MR12 = 1 : slow exit power down */
+			| AT91C_DDRC2_TXARD_(7));	/* MR12 = 1 : slow exit power down */
 
 #elif defined(CONFIG_BUS_SPEED_148MHZ)
 
@@ -189,6 +210,7 @@ static void ddramc_init(void)
 	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
+/* Between markers, this is totally different */
 	/* Init the special register for sama5d3x */
 	/* MPDDRC DLL Slave Offset Register: DDR2 configuration */
 	reg = AT91C_MPDDRC_S0OFF_1
@@ -209,13 +231,14 @@ static void ddramc_init(void)
 	reg = AT91C_MPDDRC_RDIV_DDR2_RZQ_50
 		| AT91C_MPDDRC_TZQIO_4;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
+/* end totally different */
 
 	/* DDRAM2 Controller initialize */
 	ddram_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
 }
 
 #elif defined(CONFIG_LPDDR2)
-
+#error Do not use LPDDR2
 static void lpddr2_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
@@ -424,6 +447,7 @@ void hw_init(void)
 #ifdef CONFIG_DDR2
 	ddramc_init();
 #elif defined(CONFIG_LPDDR2)
+#error lpddr2
 	lpddr2_init();
 #endif
 	/* load one wire information */

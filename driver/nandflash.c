@@ -712,12 +712,6 @@ static int nand_read_sector(struct nand_info *nand,
 		for (i = 0; i < readbytes; i++)
 			*pbuf++ = read_byte();
 
-if(dumpbuff < 1)
-{
-	dbg_info("Dumping nand read before pmecc\n");
-	page_dump(buffer, nand->pagesize, nand->oobsize );
-}
-
 #ifdef CONFIG_USE_PMECC
 		if (usepmecc)
 			ret = pmecc_process(nand, buffer);
@@ -725,13 +719,6 @@ if(dumpbuff < 1)
 	}
 
 	nand_cs_disable();
-
-if(dumpbuff < 1)
-{
-	dbg_info("Dumping nand read after pmecc\n");
-	page_dump(buffer, nand->pagesize, nand->oobsize );
-	dumpbuff++;
-}
 
 	return ret;
 }
