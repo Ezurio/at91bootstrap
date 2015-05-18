@@ -53,7 +53,10 @@
 #define LED4 (28)
 #define BITOUT (10)
 
-//#define CONFIG_MEMTEST 1
+#define CONFIG_MEMTEST 1
+#define CONFIG_MEMTEST_ITTERATIONS 1
+#define CONFIG_MEMTEST_START	0x20000000
+#define CONFIG_MEMTEST_SIZE		0x04000000
 
 extern int load_kernel(struct image_info *img_info);
 
@@ -127,6 +130,7 @@ int main(void)
 	char *media_str = NULL;
 	int ret;
 	void * retptr;
+	int i;
 
 	char filename[FILENAME_BUF_LEN];
 	char of_filename[FILENAME_BUF_LEN];
@@ -212,11 +216,39 @@ int main(void)
 	image.dest -= sizeof(at91_secure_header_t);
 #endif
 
-#if !defined(CONFIG_MEMTEST)
-	ret = (*load_image)(&image);
-#else
-	ret = 1;
+#if defined(CONFIG_MEMTEST)
+	dbg_info("Doing memtest on load area %d, size: %d\n", CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
+
+	for(i = 0; i < CONFIG_MEMTEST_ITTERATIONS; i++)
+	{
+		dbg_info("Memtest iteration %d\n", i);
+		dbg_info("Testing databus...\n");
+		ret = memTestDataBus( (void *)CONFIG_MEMTEST_START );
+		if( ret != 0 )
+		{
+			dbg_info( "    FAILED. Pattern == %d\n", ret );
+		}
+
+		dbg_info("Testing address bus...\n");
+		retptr = memTestAddressBus((void *)CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
+		if( retptr != NULL )
+		{
+			dbg_info( "    FAILED. At address == %d\n", retptr );
+			buf_dump((unsigned char *)retptr, 0, 128);
+		}
+
+		dbg_info("Testing device...\n");
+		retptr = memTestDevice((void *)CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
+		if( retptr != NULL )
+		{
+			dbg_info( "    FAILED. At address == %d\n", retptr );
+			buf_dump((unsigned char *)retptr, 0, 128);
+		}
+	}
+	dbg_info("Finished memtest, loading u-boot\n");
 #endif
+
+	ret = (*load_image)(&image);
 
 #if defined(CONFIG_SECURE)
 	if (!ret)
@@ -240,49 +272,15 @@ int main(void)
 	}
 
 #ifdef CONFIG_SCLK
-//	dbg_info("    SDd: CONFIG_SCLK\n");
 	slowclk_switch_osc32();
 #endif
 
 #if defined(CONFIG_ENTER_NWD)
-	dbg_info("    SDd: CONFIG_ENTER_NWD\n");
 	switch_normal_world();
 
 	/* point never reached with TZ support */
 #endif
-
-#if defined(CONFIG_MEMTEST)
-	image.dest = 0x20000000;
-	image.length = 0x100000;
-	dbg_info("Doing memtest on load area %d\n", image.dest);
-
-	dbg_info("Testing databus\n");
-	ret = memTestDataBus( (void *)image.dest );
-	if( ret != 0 )
-	{
-		dbg_info( "    FAILED. Pattern == %d\n", ret );
-	}
-
-	dbg_info("Testing address bus...\n");
-	retptr = memTestAddressBus((void *)image.dest, image.length);
-	if( retptr != NULL )
-	{
-		dbg_info( "    FAILED. At address == %d\n", retptr );
-		buf_dump((unsigned char *)retptr, 0, 128);
-	}
-
-	dbg_info("Testing device...\n");
-	retptr = memTestDevice((void *)image.dest, image.length);
-	if( retptr != NULL )
-	{
-		dbg_info( "    FAILED. At address == %d\n", retptr );
-		buf_dump((unsigned char *)retptr, 0, 128);
-	}
-
-	while (1);
-	/* point never reached with memtest */
-#endif
-
-	dbg_info("    SDd: JUMP_ADDR = %d\n", JUMP_ADDR);
+	dbg_info("********************\n");
+	dbg_info("****    SDd: JUMP_ADDR = %d\n", JUMP_ADDR);
 	return JUMP_ADDR;
 }
