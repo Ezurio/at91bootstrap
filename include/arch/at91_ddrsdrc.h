@@ -38,10 +38,9 @@
 #define HDDRSDRC2_T3PR		0x18	/* Timing Parameter 3 Register */
 #define HDDRSDRC2_LPR		0x1C	/* Low-power Register */
 #define HDDRSDRC2_MDR		0x20	/* Memory Device Register */
-#define HDDRSDRC2_DLL		0x24	/* DLL Information Register */
-#define HDDRSDRC2_HS		0x2C	/* High Speed Register */
 
 /* below items defined for sama5d3x */
+#define MPDDRC_HS		0x24	/* High Speed Register */
 #define	MPDDRC_LPDDR2_LPR	0x28	/* MPDDRC LPDDR2 Low-power Register */
 #define	MPDDRC_LPDDR2_CAL_MR4	0x2C	/* MPDDRC LPDDR2 Calibration and MR4 Register */
 #define	MPDDRC_LPDDR2_TIM_CAL	0x30	/* MPDDRC LPDDR2 Timing Calibration Register */
@@ -201,11 +200,9 @@
 #define 	AT91C_DDRC2_DBW_32_BITS		(0x0UL << 4)
 #define 	AT91C_DDRC2_DBW_16_BITS		(0x1UL << 4)
 
-/* -------- HDDRSDRC2_DLL : (HDDRSDRC2 Offset: 0x24) DLL Information Register --------*/ 
-#define AT91C_DDRC2_MDINC	(0x1UL << 0)
-#define AT91C_DDRC2_MDDEC	(0x1UL << 1)
-#define AT91C_DDRC2_MDOVF	(0x1UL << 2)
-#define AT91C_DDRC2_MDVAL	(0xFFUL << 8
+/* -------- MPDDRC_HS : (MPDDRC_HS Offset: 0x24) High Speed Register --------*/
+#define AT91C_DDRC2_DIS_ANTICIP_READ	(0x1UL << 2)
+#define AT91C_DDRC2_EN_CALIB	(0x1UL << 5)
 
 /* ------- MPDDRC_LPDDR2_LPR (offset: 0x28) */
 #define AT91C_LPDDRC2_BK_MASK_PASR(value)	(value << 0)

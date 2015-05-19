@@ -44,6 +44,7 @@
 #include "arch/sama5_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_ddrsdrc.h"
+#include "arch/at91_sfr.h"
 #include "sama5d3xek.h"
 
 #define LED0 (12)
@@ -89,16 +90,23 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
 				| AT91C_DDRC2_MD_LP_DDR_SDRAM);
 
+// 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR9_SDR8
+// 				| AT91C_DDRC2_NR_13
+// 				| AT91C_DDRC2_CAS_3
+// 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
+// 				| AT91C_DDRC2_NB_BANKS_4
+// 				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
+// 				| AT91C_DDRC2_DECOD_INTERLEAVED /* Interleaved decoding */
+// 				| AT91C_DDRC2_DQMS_NOT_SHARED
+// 				| AT91C_DDRC2_ENRDM_DISABLE
+// 				| AT91C_DDRC2_UNAL_UNSUPPORTED);   /* Unaligned access is NOT supported */
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR9_SDR8
 				| AT91C_DDRC2_NR_13
 				| AT91C_DDRC2_CAS_3
 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
 				| AT91C_DDRC2_NB_BANKS_4
-				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
 				| AT91C_DDRC2_DECOD_INTERLEAVED /* Interleaved decoding */
-				| AT91C_DDRC2_DQMS_NOT_SHARED
-				| AT91C_DDRC2_ENRDM_DISABLE
-				| AT91C_DDRC2_UNAL_UNSUPPORTED);   /* Unaligned access is NOT supported */
+				);   /* Unaligned access is NOT supported */
 
 // 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
 // 				| AT91C_DDRC2_NR_13
@@ -132,14 +140,14 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
 			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
-			| AT91C_DDRC2_TXSNR_(28)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
-			| AT91C_DDRC2_TRFC_(26));	/* 26 * 7.5 = 195 ns */
+			| AT91C_DDRC2_TXSNR_(19)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
+			| AT91C_DDRC2_TRFC_(18));	/* 26 * 7.5 = 195 ns */
 
-	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(10)	/* 7 * 7.5 = 52.5 ns */
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
 			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TRPA_(3)		/* 2 * 7.5 = 15 ns */
 			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
-			| AT91C_DDRC2_TXARD_(8));	/* MR12 = 1 : slow exit power down */
+			| AT91C_DDRC2_TXARD_(2));	/* MR12 = 1 : slow exit power down */
 
 #elif defined(CONFIG_BUS_SPEED_148MHZ)
 
@@ -206,11 +214,14 @@ static void ddramc_init(void)
 
 	ddramc_reg_config(&ddramc_reg);
 
+	writel( SFR_DDRCFG_FDQIEN | SFR_DDRCFG_FDQSIEN, (AT91C_BASE_SFR + SFR_DDRCFG));
+
 	/* enable ddr2 clock */
 	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
-/* Between markers, this is totally different */
+	writel( AT91C_DDRC2_EN_CALIB, (AT91C_BASE_MPDDRC + MPDDRC_HS));
+
 	/* Init the special register for sama5d3x */
 	/* MPDDRC DLL Slave Offset Register: DDR2 configuration */
 	reg = AT91C_MPDDRC_S0OFF_1
@@ -222,16 +233,15 @@ static void ddramc_init(void)
 	/* write master + clk90 offset */
 	reg = AT91C_MPDDRC_MOFF_7
 		| AT91C_MPDDRC_CLK90OFF_31
-		| AT91C_MPDDRC_SELOFF_ENABLED | AT91C_MPDDRC_KEY;
+		| AT91C_MPDDRC_SELOFF_ENABLED;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_DLL_MOR));
 
 	/* MPDDRC I/O Calibration Register */
-	/* DDR2 RZQ = 50 Ohm */
-	/* TZQIO = 4 */
-	reg = AT91C_MPDDRC_RDIV_DDR2_RZQ_50
-		| AT91C_MPDDRC_TZQIO_4;
+	/* DDR2 RZQ = 48 Ohm */
+	/* TZQIO = 3 */
+	reg = AT91C_MPDDRC_RDIV_LPDDR2_RZQ_48
+		| AT91C_MPDDRC_TZQIO_3;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
-/* end totally different */
 
 	/* DDRAM2 Controller initialize */
 	ddram_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
