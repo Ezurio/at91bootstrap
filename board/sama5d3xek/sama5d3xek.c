@@ -104,8 +104,13 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 				| AT91C_DDRC2_NR_13
 				| AT91C_DDRC2_CAS_3
 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
+				| AT91C_DDRC2_DQMS_NOT_SHARED
+				| AT91C_DDRC2_ENRDM_DISABLE
 				| AT91C_DDRC2_NB_BANKS_4
+				| AT91C_DDRC2_NDQS_DISABLED
+				| AT91C_DDRC2_UNAL_SUPPORTED
 				| AT91C_DDRC2_DECOD_INTERLEAVED /* Interleaved decoding */
+				| AT91C_DDRC2_OCD_EXIT	/* OCD(0) */
 				);   /* Unaligned access is NOT supported */
 
 // 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
