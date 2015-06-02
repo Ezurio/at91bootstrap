@@ -212,8 +212,10 @@ static void ddramc_init(void)
 	struct ddramc_register ddramc_reg;
 	unsigned int reg;
 
+	/* Setup the parameters we'll pass to the register later */
 	ddramc_reg_config(&ddramc_reg);
 
+	/* For lpddr1, DQ and DQS input buffers must always be set on */
 	writel( SFR_DDRCFG_FDQIEN | SFR_DDRCFG_FDQSIEN, (AT91C_BASE_SFR + SFR_DDRCFG));
 
 	/* enable ddr2 clock */
@@ -221,6 +223,8 @@ static void ddramc_init(void)
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
 	writel( AT91C_DDRC2_EN_CALIB, (AT91C_BASE_MPDDRC + MPDDRC_HS));
+
+	/* TODO: don't know what the DLL slave and master offsets should be! */
 
 	/* Init the special register for sama5d3x */
 	/* MPDDRC DLL Slave Offset Register: DDR2 configuration */
@@ -236,15 +240,36 @@ static void ddramc_init(void)
 		| AT91C_MPDDRC_SELOFF_ENABLED;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_DLL_MOR));
 
+	/* setting the LPR to 0 is done before the calibration stuff in the sam-ba code, lets do that */
+	writel(0, (AT91C_BASE_MPDDRC + HDDRSDRC2_LPR));
+
+	/* TODO: verify right values of calibration?
+	 * And what do we do with said calibration?
+	 */
 	/* MPDDRC I/O Calibration Register */
 	/* DDR2 RZQ = 48 Ohm */
-	/* TZQIO = 3 */
-	reg = AT91C_MPDDRC_RDIV_LPDDR2_RZQ_48
-		| AT91C_MPDDRC_TZQIO_3;
+	/* TZQIO = (133 * 10^6) * (20 * 10^-9) + 1 = 3.66 == 4 */
+	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR);
+	reg &= ~AT91C_MPDDRC_RDIV;
+	reg &= ~AT91C_MPDDRC_TZQIO;
+	reg |= AT91C_MPDDRC_RDIV_LPDDR2_RZQ_48;
+	reg |= AT91C_MPDDRC_TZQIO_4;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
 
+	/* SAM-BA does this before the above, but the app note
+	 * "Atmel-11172B-ATARM-Implementation-of-DDR2-and-LPDDR2-on-SAMA5D3x-Devices"
+	 * says do this afterwards, so... there you go. */
+	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_HS);
+	reg |= AT91C_DDRC2_EN_CALIB; /* Don't disturb the rest of the bits */
+	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_HS));
+
 	/* DDRAM2 Controller initialize */
-	ddram_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
+	lpddram1_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
+
+	ddramc_print_config_regs(AT91C_BASE_MPDDRC);
+
+	dbg_very_loud("End ddram init\n");
+
 }
 
 #elif defined(CONFIG_LPDDR2)
