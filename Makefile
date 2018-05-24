@@ -24,7 +24,7 @@ endif
 BINDIR:=$(TOPDIR)/binaries
 
 DATE := $(shell date)
-LRD_BLD_NUMBER := 5.0.0.6
+LRD_BLD_NUMBER := 5.0.0.7
 VERSION := 3.7.1
 REVISION := laird08
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
