@@ -95,7 +95,7 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	 * register). Only the DDR controller function is thus used on lower
 	 * EBI data lines.
 	 */
-	//ddramc_config->cr |= AT91C_DDRC2_EBISHARE;       /* DQM is shared with other controller */
+	ddramc_config->cr |= AT91C_DDRC2_EBISHARE;       /* DQM is shared with other controller */
 
 
 	/*
@@ -321,25 +321,26 @@ void nandflash_hw_init(void)
 	/* Configure SMC CS3 */
 	writel((AT91C_SMC_NWESETUP_(1)
 		| AT91C_SMC_NCS_WRSETUP_(0)
-		| AT91C_SMC_NRDSETUP_(2)
+		| AT91C_SMC_NRDSETUP_(0)
 		| AT91C_SMC_NCS_RDSETUP_(0)),
 		AT91C_BASE_SMC + SMC_SETUP3);
 
 	writel((AT91C_SMC_NWEPULSE_(3)
-		| AT91C_SMC_NCS_WRPULSE_(5)
-		| AT91C_SMC_NRDPULSE_(4)
+		| AT91C_SMC_NCS_WRPULSE_(6)
+		| AT91C_SMC_NRDPULSE_(3)
 		| AT91C_SMC_NCS_RDPULSE_(6)),
 		AT91C_BASE_SMC + SMC_PULSE3);
 
-	writel((AT91C_SMC_NWECYCLE_(5)
-		| AT91C_SMC_NRDCYCLE_(7)),
+	writel((AT91C_SMC_NWECYCLE_(6)
+		| AT91C_SMC_NRDCYCLE_(6)),
 		AT91C_BASE_SMC + SMC_CYCLE3);
 
 	writel((AT91C_SMC_READMODE
 		| AT91C_SMC_WRITEMODE
 		| AT91C_SMC_NWAITM_NWAIT_DISABLE
 		| AT91C_SMC_DBW_WIDTH_BITS_8
-		| AT91_SMC_TDF_(1)),
+		| AT91C_SMC_TDFEN
+		| AT91_SMC_TDF_(12)),
 		AT91C_BASE_SMC + SMC_CTRL3);
 
 	/* Configure the PIO controller */
