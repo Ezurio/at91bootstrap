@@ -26,7 +26,7 @@ BINDIR:=$(TOPDIR)/binaries
 DATE := $(shell date)
 LRD_BLD_NUMBER := 7.0.0.17
 VERSION := 3.7.1
-REVISION := laird08
+REVISION := laird09
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
 
 ifeq ($(SCMINFO),)
