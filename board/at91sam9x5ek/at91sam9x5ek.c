@@ -69,7 +69,7 @@ static void initialize_dbgu(void)
 }
 
 #ifdef CONFIG_DDR2
-/* Using the Micron MT47H64M16HR-3 */
+/* Using the Micron MT46H32M16LFBF-(6 & 5 combined) */
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_16_BITS
@@ -107,31 +107,38 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	ddramc_config->rtr = 0x411;     /* Refresh timer: 7.8125us */
 
 	/* One clock cycle @ 133 MHz = 7.5 ns */
-	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
-			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
-			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 = 75   ns */
-			| AT91C_DDRC2_TRP_(2)		/* 2 * 7.5 = 15   ns */
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 >= 45 ns */
+			| AT91C_DDRC2_TRCD_(3)		/* 3 * 7.5 >= 18 ns */
+			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 >= 15   ns */
+			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 >= 75   ns */
+			| AT91C_DDRC2_TRP_(3)		/* 3 * 7.5 >= 18   ns */
 			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TWTR_(2)		/* 2 clock cycles min */
+			| AT91C_DDRC2_TWTR_(1)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
-			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
-			| AT91C_DDRC2_TXSNR_(19)	/* 19 * 7.5 = 142.5 ns*/
-			| AT91C_DDRC2_TRFC_(18));	/* 18 * 7.5 = 135 ns */
+			| AT91C_DDRC2_TXSRD_(0) 	/* 0 clock cycles */
+			| AT91C_DDRC2_TXSNR_(15)	/* 15 * 7.5 = 142.5 ns*/
+			| AT91C_DDRC2_TRFC_(10));	/* 10 * 7.5 = 135 ns */
 
-	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
-			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
-			| AT91C_DDRC2_TRPA_(3)		/* 3 * 7.5 = 22.5 ns */
-			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
-			| AT91C_DDRC2_TXARD_(2));	/* 2 clock cycles */
+	ddramc_config->t2pr = AT91C_DDRC2_TRTP_(4);
+
+	ddramc_config->lpr = (AT91C_DDRC2_LPCB_DISABLED
+			| AT91C_DDRC2_CLK_FR
+			| AT91C_DDRC2_LPDDR2_PWOFF_DISABLED
+			| AT91C_DDRC2_PASR_(0)
+			| AT91C_DDRC2_DS_(0)
+			| AT91C_DDRC2_TIMEOUT_0
+			| AT91C_DDRC2_ADPE_FAST
+			| AT91C_DDRC2_UPD_MR_(0));
 }
 
 static void ddramc_init(void)
 {
 	unsigned long csa;
 	struct ddramc_register ddramc_reg;
+
+	memset(&ddramc_reg, 0, sizeof(ddramc_reg));
 
 	ddramc_reg_config(&ddramc_reg);
 
@@ -147,8 +154,8 @@ static void ddramc_init(void)
 
 	writel(csa, AT91C_BASE_CCFG + CCFG_EBICSA);
 
-	/* DDRAM2 Controller initialize */
-	ddram_initialize(AT91C_BASE_DDRSDRC, AT91C_BASE_CS1, &ddramc_reg);
+	/* LPDDRAM1 Controller initialize */
+	lpddram1_initialize(AT91C_BASE_DDRSDRC, AT91C_BASE_CS1, &ddramc_reg);
 }
 #endif	/* #ifdef CONFIG_DDR2 */
 

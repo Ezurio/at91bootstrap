@@ -104,34 +104,38 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 				);   /* Unaligned access is NOT supported */
 
 #if defined(CONFIG_BUS_SPEED_133MHZ)  /* This is defined */
+	/* Timing for MT46H16M32LF (5 & 6) */
 	/*
-	 * The DDR2-SDRAM device requires a refresh every 15.625 us or 7.81 us.
-	 * With a 133 MHz frequency, the refresh timer count register must to be
-	 * set with (15.625 x 133 MHz) ~ 2084 i.e. 0x824
-	 * or (7.81 x 133 MHz) ~ 1040 i.e. 0x410.
+	 * The SDRAM device requires a refresh of all rows at least every 64ms.
+	 * ((64ms) / 8192) * 132 MHz = 1031 i.e. 0x407
 	 */
-	ddramc_config->rtr = 0x411;     /* Refresh timer: 7.8125us */
+	ddramc_config->rtr = 0x407;     /* Refresh timer: 64 ms */
 
-	/* One clock cycle @ 133 MHz = 7.5 ns */
-	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
-			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
-			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 = 75   ns */
-			| AT91C_DDRC2_TRP_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5 = 15   ns */
+	/* One clock cycle @ 132 MHz = 7.5758 ns */
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5758 = 45 ns */
+			| AT91C_DDRC2_TRCD_(3)		/* 3 * 7.5758 >= 18 ns */
+			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5758 >= 15 ns */
+			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5758 >= 75 ns */
+			| AT91C_DDRC2_TRP_(3)		/* 3 * 7.5758 >= 18 ns */
+			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5758 >= 15 ns */
 			| AT91C_DDRC2_TWTR_(2)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
-	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
-			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
-			| AT91C_DDRC2_TXSNR_(19)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
-			| AT91C_DDRC2_TRFC_(18));	/* 26 * 7.5 = 195 ns */
+	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(1)	/*  1 clock cycles */
+			| AT91C_DDRC2_TXSRD_(0)	    /* 0 clock cycles */
+			| AT91C_DDRC2_TXSNR_(15)	/* 15 * 7.5758 >= 112.5 ns */
+			| AT91C_DDRC2_TRFC_(10));	/* 10 * 7.5758 >= 75 ns */
 
-	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
-			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
-			| AT91C_DDRC2_TRPA_(3)		/* 2 * 7.5 = 15 ns */
-			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
-			| AT91C_DDRC2_TXARD_(2));	/* MR12 = 1 : slow exit power down */
+	ddramc_config->t2pr = AT91C_DDRC2_TRTP_(4);
+
+	ddramc_config->lpr = (AT91C_DDRC2_LPCB_DISABLED
+			| AT91C_DDRC2_CLK_FR
+			| AT91C_DDRC2_LPDDR2_PWOFF_DISABLED
+			| AT91C_DDRC2_PASR_(0)
+			| AT91C_DDRC2_DS_(1)
+			| AT91C_DDRC2_TIMEOUT_0
+			| AT91C_DDRC2_ADPE_FAST
+			| AT91C_DDRC2_UPD_MR_(0));
 
 #elif defined(CONFIG_BUS_SPEED_148MHZ)
 
@@ -197,6 +201,8 @@ static void ddramc_init(void)
 	unsigned int reg;
 	unsigned int old_io_cal_reg;
 
+	memset(&ddramc_reg, 0, sizeof(ddramc_reg));
+
 	/* Setup the parameters we'll pass to the register later */
 	ddramc_reg_config(&ddramc_reg);
 
@@ -206,10 +212,6 @@ static void ddramc_init(void)
 	/* enable ddr2 clock */
 	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
 	pmc_enable_system_clock(AT91C_PMC_DDR);
-
-	writel( AT91C_DDRC2_EN_CALIB, (AT91C_BASE_MPDDRC + MPDDRC_HS));
-
-	/* TODO: don't know what the DLL slave and master offsets should be! */
 
 	/* Init the special register for sama5d3x */
 	/* MPDDRC DLL Slave Offset Register: DDR2 configuration */
@@ -239,12 +241,9 @@ static void ddramc_init(void)
 	reg &= ~AT91C_MPDDRC_RDIV;
 	reg &= ~AT91C_MPDDRC_TZQIO;
 	reg |= AT91C_MPDDRC_RDIV_DDR2_RZQ_66_7;
-	reg |= AT91C_MPDDRC_TZQIO_3;
+	reg |= AT91C_MPDDRC_TZQIO_4;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
 
-	/* SAM-BA does this before the above, but the app note
-	 * "Atmel-11172B-ATARM-Implementation-of-DDR2-and-LPDDR2-on-SAMA5D3x-Devices"
-	 * says do this afterwards, so... there you go. */
 	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_HS);
 	reg |= AT91C_DDRC2_EN_CALIB; /* Don't disturb the rest of the bits */
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_HS));

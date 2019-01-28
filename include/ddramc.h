@@ -35,6 +35,7 @@ struct ddramc_register {
 	unsigned int t0pr;
 	unsigned int t1pr;
 	unsigned int t2pr;
+	unsigned int lpr;
 	unsigned int lpddr2_lpr;
 	unsigned int tim_calr;
 };
