@@ -26,7 +26,7 @@ BINDIR:=$(TOPDIR)/binaries
 DATE := $(shell date)
 LRD_BLD_NUMBER := 7.0.0.335
 VERSION := 3.7.1
-REVISION := laird09
+REVISION := $(LRD_BLD_NUMBER)
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
 
 ifeq ($(SCMINFO),)
@@ -217,7 +217,7 @@ NOSTDINC_FLAGS=-nostdinc -isystem $(shell $(CC) -print-file-name=include)
 CPPFLAGS=$(NOSTDINC_FLAGS) -ffunction-sections -g -Os -Wall \
 	-fno-stack-protector -fno-common \
 	-I$(INCL) -Iinclude -Ifs/include -I$(TOPDIR)/config/at91bootstrap-config \
-	-DAT91BOOTSTRAP_VERSION=\"$(LRD_BLD_NUMBER)-$(VERSION)$(REV)$(SCMINFO)\" -DCOMPILE_TIME="\"$(DATE)\""
+	-DAT91BOOTSTRAP_VERSION=\"$(VERSION)$(REV)$(SCMINFO)\" -DCOMPILE_TIME="\"$(DATE)\""
 
 ASFLAGS=-g -Os -Wall -I$(INCL) -Iinclude
 
