@@ -282,6 +282,7 @@ int ddram_initialize(unsigned int base_address,
 	return 0;
 }
 
+#elif defined(CONFIG_LPDDR1)
 
 int lpddram1_initialize(unsigned int base_address,
 			unsigned int ram_address,

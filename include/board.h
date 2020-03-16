@@ -88,6 +88,18 @@
 #include "sama5d4_xplained.h"
 #endif
 
+#ifdef CONFIG_WB40N
+#include "wb40n.h"
+#endif
+
+#ifdef CONFIG_WB45N
+#include "wb45n.h"
+#endif
+
+#ifdef CONFIG_WB50N
+#include "wb50n.h"
+#endif
+
 /*
  * Functions Prototype
  */

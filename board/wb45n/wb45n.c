@@ -1,29 +1,7 @@
-/* ----------------------------------------------------------------------------
- *         ATMEL Microcontroller Software Support
- * ----------------------------------------------------------------------------
- * Copyright (c) 2008, Atmel Corporation
-
- * All rights reserved.
+/*
+ * WB45N Module support
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaimer below.
- *
- * Atmel's name may not be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * DISCLAIMER: THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
- * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Copyright (c) 2008-2020, Laird Connectivity
  */
 #include "common.h"
 #include "hardware.h"
@@ -42,7 +20,7 @@
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
-#include "at91sam9x5ek.h"
+#include "wb45n.h"
 #include "board_hw_info.h"
 
 #ifdef CONFIG_USER_HW_INIT
@@ -53,7 +31,7 @@ static void at91_dbgu_hw_init(void)
 {
 	/* Configure DBGU pins */
 	const struct pio_desc dbgu_pins[] = {
-		{"RXD", AT91C_PIN_PA(9), 0, PIO_DEFAULT, PIO_PERIPH_A},
+		{"RXD", AT91C_PIN_PA(9), 0, PIO_PULLUP, PIO_PERIPH_A},
 		{"TXD", AT91C_PIN_PA(10), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
@@ -68,35 +46,20 @@ static void initialize_dbgu(void)
 	usart_init(BAUDRATE(MASTER_CLOCK, BAUD_RATE));
 }
 
-#ifdef CONFIG_DDR2
-/* Using the Micron MT47H64M16HR-3 */
+/* Using the Micron MT46H32M16LFBF-(6 & 5 combined) */
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_16_BITS
-			| AT91C_DDRC2_MD_DDR2_SDRAM);
+			| AT91C_DDRC2_MD_LP_DDR_SDRAM);
 
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9 /* 10 column bits(1K) */
 			| AT91C_DDRC2_NR_13              /* 13 row bits (8K) */
 			| AT91C_DDRC2_CAS_3              /* CAS Latency 3 */
-			| AT91C_DDRC2_NB_BANKS_8         /* 8 banks */
+			| AT91C_DDRC2_NB_BANKS_4         /* 4 banks */
 			| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
 			| AT91C_DDRC2_DECOD_INTERLEAVED);/*Interleaved decode*/
 
-	/*
-	 * Make sure to uncomment the following line if the DDR controller
-	 * shares the EBI with another memory controller (SMC, NAND,..).
-	 * For instance, AT91C_DDRC2_EBISHARE shall be set if NAND flash
-	 * data line 0 is positioned on EBI data line 0 (AT91C_EBI_NFD0_ON_D16 bit
-	 * cleared in CCFG_EBICSA register).
-	 *
-	 * For Atmel AT91SAM9x5-EK revision B onwards, this AT91C_DDRC2_EBISHARE bit
-	 * is cleared because the NAND flash data line 0 is positioned on EBI
-	 * data line number 16 (AT91C_EBI_NFD0_ON_D16 bit set in CCFG_EBICSA
-	 * register). Only the DDR controller function is thus used on lower
-	 * EBI data lines.
-	 */
-	//ddramc_config->cr |= AT91C_DDRC2_EBISHARE;       /* DQM is shared with other controller */
-
+	ddramc_config->cr |= AT91C_DDRC2_EBISHARE;       /* DQM is shared with other controller */
 
 	/*
 	 * The DDR2-SDRAM device requires a refresh every 15.625 us or 7.81 us.
@@ -107,25 +70,30 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	ddramc_config->rtr = 0x411;     /* Refresh timer: 7.8125us */
 
 	/* One clock cycle @ 133 MHz = 7.5 ns */
-	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
-			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
-			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 = 75   ns */
-			| AT91C_DDRC2_TRP_(2)		/* 2 * 7.5 = 15   ns */
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 >= 45 ns */
+			| AT91C_DDRC2_TRCD_(3)		/* 3 * 7.5 >= 18 ns */
+			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 >= 15   ns */
+			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 >= 75   ns */
+			| AT91C_DDRC2_TRP_(3)		/* 3 * 7.5 >= 18   ns */
 			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5 = 15   ns */
-			| AT91C_DDRC2_TWTR_(2)		/* 2 clock cycles min */
+			| AT91C_DDRC2_TWTR_(1)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
-			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
-			| AT91C_DDRC2_TXSNR_(19)	/* 19 * 7.5 = 142.5 ns*/
-			| AT91C_DDRC2_TRFC_(18));	/* 18 * 7.5 = 135 ns */
+			| AT91C_DDRC2_TXSRD_(0)		/* 0 clock cycles */
+			| AT91C_DDRC2_TXSNR_(15)	/* 15 * 7.5 = 142.5 ns*/
+			| AT91C_DDRC2_TRFC_(10));	/* 10 * 7.5 = 135 ns */
 
-	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
-			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
-			| AT91C_DDRC2_TRPA_(3)		/* 3 * 7.5 = 22.5 ns */
-			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
-			| AT91C_DDRC2_TXARD_(2));	/* 2 clock cycles */
+	ddramc_config->t2pr = AT91C_DDRC2_TRTP_(4);
+
+	ddramc_config->lpr = (AT91C_DDRC2_LPCB_DISABLED
+			| AT91C_DDRC2_CLK_FR
+			| AT91C_DDRC2_LPDDR2_PWOFF_DISABLED
+			| AT91C_DDRC2_PASR_(0)
+			| AT91C_DDRC2_DS_(0)
+			| AT91C_DDRC2_TIMEOUT_0
+			| AT91C_DDRC2_ADPE_FAST
+			| AT91C_DDRC2_UPD_MR_(0));
 }
 
 static void ddramc_init(void)
@@ -133,9 +101,11 @@ static void ddramc_init(void)
 	unsigned long csa;
 	struct ddramc_register ddramc_reg;
 
+	memset(&ddramc_reg, 0, sizeof(ddramc_reg));
+
 	ddramc_reg_config(&ddramc_reg);
 
-	/* ENABLE DDR2 clock */
+	/* ENABLE DDR clock */
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
 	/* Chip select 1 is for DDR2/SDRAM */
@@ -147,20 +117,25 @@ static void ddramc_init(void)
 
 	writel(csa, AT91C_BASE_CCFG + CCFG_EBICSA);
 
-	/* DDRAM2 Controller initialize */
-	ddram_initialize(AT91C_BASE_DDRSDRC, AT91C_BASE_CS1, &ddramc_reg);
+	/* LPDDRAM1 Controller initialize */
+	lpddram1_initialize(AT91C_BASE_DDRSDRC, AT91C_BASE_CS1, &ddramc_reg);
 }
-#endif	/* #ifdef CONFIG_DDR2 */
 
-static void one_wire_hw_init(void)
+static void gpio_init(void)
 {
-	const struct pio_desc wire_pio[] = {
-		{"1-Wire", AT91C_PIN_PB(18), 1, PIO_DEFAULT, PIO_OUTPUT},
-		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
+	/* Setup WB45NBT custom GPIOs */
+	const struct pio_desc gpios[] = {
+	/*  {"NAME",        PIN NUMBER,     VALUE, ATTRIBUTES, TYPE },*/
+		{"CHIP_PWD_L",	AT91C_PIN_PA(28),	0, PIO_DEFAULT, PIO_OUTPUT},
+		{"VBUS_SENSE",	AT91C_PIN_PB(11),	0, PIO_DEFAULT, PIO_INPUT},
+		{"VBUS_EN",	    AT91C_PIN_PB(12),	0, PIO_DEFAULT, PIO_OUTPUT},
+		{"IRQ",	        AT91C_PIN_PB(18),	0, PIO_PULLUP,  PIO_INPUT},
+		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
+	/* Configure the PIO controller */
 	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
-	pio_configure(wire_pio);
+	pio_configure(gpios);
 }
 
 #ifdef CONFIG_HW_INIT
@@ -197,12 +172,10 @@ void hw_init(void)
 	/* Initialize dbgu */
 	initialize_dbgu();
 
-#ifdef CONFIG_DDR2
 	/* Initialize DDRAM Controller */
 	ddramc_init();
-#endif
-	/* one wire pin init */
-	one_wire_hw_init();
+
+	gpio_init();
 
 #ifdef CONFIG_USER_HW_INIT
 	hw_init_hook();
@@ -210,48 +183,10 @@ void hw_init(void)
 }
 #endif /* #ifdef CONFIG_HW_INIT */
 
-#ifdef CONFIG_DATAFLASH
-void at91_spi0_hw_init(void)
-{
-	/* Configure PINs for SPI0 */
-	const struct pio_desc spi0_pins[] = {
-		{"MISO",	AT91C_PIN_PA(11),	0, PIO_DEFAULT, PIO_PERIPH_A},
-		{"MOSI",	AT91C_PIN_PA(12),	0, PIO_DEFAULT, PIO_PERIPH_A},
-		{"SPCK",	AT91C_PIN_PA(13),	0, PIO_DEFAULT, PIO_PERIPH_A},
-		{"NPCS",	CONFIG_SYS_SPI_PCS,	1, PIO_DEFAULT, PIO_OUTPUT},
-		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
-	};
-
-	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
-	pio_configure(spi0_pins);
-
-	pmc_enable_periph_clock(AT91C_ID_SPI0);
-}
-#endif	/* #ifdef CONFIG_DATAFLASH */
-
 #ifdef CONFIG_SDCARD
 static void sdcard_set_of_name_board(char *of_name)
 {
-	unsigned int cpu_board_id = get_cm_sn();
-	unsigned int disp_board_id = get_dm_sn();
-
-	if (cpu_board_id == BOARD_ID_SAM9G15_CM)
-		strcpy(of_name, "at91sam9g15ek");
-	else if (cpu_board_id == BOARD_ID_SAM9G25_CM)
-		strcpy(of_name, "at91sam9g25ek");
-	else if (cpu_board_id == BOARD_ID_SAM9G35_CM)
-		strcpy(of_name, "at91sam9g35ek");
-	else if (cpu_board_id == BOARD_ID_SAM9X25_CM)
-		strcpy(of_name, "at91sam9x25ek");
-	else if (cpu_board_id == BOARD_ID_SAM9X35_CM)
-		strcpy(of_name, "at91sam9x35ek");
-	else
-		dbg_info("WARNING: Not correct CPU board ID\n");
-
-	if (disp_board_id == BOARD_ID_PDA_DM)
-		strcat(of_name, "_pda");
-
-	strcat(of_name, ".dtb");
+	strcpy(of_name, "wb45n.dtb");
 }
 
 void at91_mci0_hw_init(void)
@@ -306,16 +241,14 @@ void nandflash_hw_init(void)
 		{"NANDWE",	CONFIG_SYS_NAND_WE_PIN,		0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDALE",	CONFIG_SYS_NAND_ALE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCLE",	CONFIG_SYS_NAND_CLE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDCS", 	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
+		{"NANDCS",	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
+		{"NWP", AT91C_PIN_PD(10), 0, PIO_PULLUP, PIO_OUTPUT},
 		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
 	reg = readl(AT91C_BASE_CCFG + CCFG_EBICSA);
 	reg |= AT91C_EBI_CS3A_SM;
-	if (get_cm_rev() == 'A')
-		reg &= ~AT91C_EBI_NFD0_ON_D16;
-	else
-		reg |= (AT91C_EBI_DDR_MP_EN | AT91C_EBI_NFD0_ON_D16);
+	reg &= ~AT91C_EBI_NFD0_ON_D16;
 
 	reg &= ~AT91C_EBI_DRV;
 	writel(reg, AT91C_BASE_CCFG + CCFG_EBICSA);
@@ -323,32 +256,30 @@ void nandflash_hw_init(void)
 	/* Configure SMC CS3 */
 	writel((AT91C_SMC_NWESETUP_(1)
 		| AT91C_SMC_NCS_WRSETUP_(0)
-		| AT91C_SMC_NRDSETUP_(2)
+		| AT91C_SMC_NRDSETUP_(0)
 		| AT91C_SMC_NCS_RDSETUP_(0)),
 		AT91C_BASE_SMC + SMC_SETUP3);
 
 	writel((AT91C_SMC_NWEPULSE_(3)
-		| AT91C_SMC_NCS_WRPULSE_(5)
-		| AT91C_SMC_NRDPULSE_(4)
+		| AT91C_SMC_NCS_WRPULSE_(6)
+		| AT91C_SMC_NRDPULSE_(3)
 		| AT91C_SMC_NCS_RDPULSE_(6)),
 		AT91C_BASE_SMC + SMC_PULSE3);
 
-	writel((AT91C_SMC_NWECYCLE_(5)
-		| AT91C_SMC_NRDCYCLE_(7)),
+	writel((AT91C_SMC_NWECYCLE_(6)
+		| AT91C_SMC_NRDCYCLE_(6)),
 		AT91C_BASE_SMC + SMC_CYCLE3);
 
 	writel((AT91C_SMC_READMODE
 		| AT91C_SMC_WRITEMODE
 		| AT91C_SMC_NWAITM_NWAIT_DISABLE
 		| AT91C_SMC_DBW_WIDTH_BITS_8
-		| AT91_SMC_TDF_(1)),
+		| AT91C_SMC_TDFEN
+		| AT91_SMC_TDF_(12)),
 		AT91C_BASE_SMC + SMC_CTRL3);
 
 	/* Configure the PIO controller */
-	if (get_cm_rev() == 'A')
-		pio_configure(nand_pins_lo);
-	else
-		pio_configure(nand_pins_hi);
+	pio_configure(nand_pins_lo);
 
 	pmc_enable_periph_clock(AT91C_ID_PIOC_D);
 }

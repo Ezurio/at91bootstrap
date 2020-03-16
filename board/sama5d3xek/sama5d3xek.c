@@ -44,18 +44,7 @@
 #include "arch/sama5_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_ddrsdrc.h"
-#include "arch/at91_sfr.h"
 #include "sama5d3xek.h"
-
-#define LED0 (12)
-#define LED1 (24)
-#define LED2 (26)  // Using LED2 for SDA
-#define LED3 (22)
-#define LED4 (28)
-#define BITOUT (10)
-
-#define LED_ON (x) 	pio_set_value( (x), 0);
-#define LED_OFF (x) 	pio_set_value( (x), 1);
 
 #ifdef CONFIG_USER_HW_INIT
 extern void hw_init_hook(void);
@@ -65,7 +54,7 @@ static void at91_dbgu_hw_init(void)
 {
 	/* Configure DBGU pin */
 	const struct pio_desc dbgu_pins[] = {
-		{"RXD", AT91C_PIN_PB(30), 0, PIO_PULLUP, PIO_PERIPH_A},
+		{"RXD", AT91C_PIN_PB(30), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{"TXD", AT91C_PIN_PB(31), 0, PIO_DEFAULT, PIO_PERIPH_A},
 		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
@@ -84,58 +73,52 @@ static void initialize_dbgu(void)
 	usart_init(BAUDRATE(MASTER_CLOCK, 115200));
 }
 
-#ifdef CONFIG_DDR2 /* This is defined */
+#ifdef CONFIG_DDR2
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
-				| AT91C_DDRC2_MD_LP_DDR_SDRAM);
+				| AT91C_DDRC2_MD_DDR2_SDRAM);
 
-	ddramc_config->cr = (AT91C_DDRC2_NC_DDR9_SDR8
-				| AT91C_DDRC2_NR_13
+	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
+				| AT91C_DDRC2_NR_14
 				| AT91C_DDRC2_CAS_3
 				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
-				| AT91C_DDRC2_DQMS_NOT_SHARED
-				| AT91C_DDRC2_ENRDM_DISABLE
-				| AT91C_DDRC2_NB_BANKS_4
-				| AT91C_DDRC2_NDQS_DISABLED
-				| AT91C_DDRC2_UNAL_SUPPORTED
-				| AT91C_DDRC2_DECOD_INTERLEAVED /* Interleaved decoding */
-				| AT91C_DDRC2_OCD_EXIT	/* OCD(0) */
-				);   /* Unaligned access is NOT supported */
+				| AT91C_DDRC2_DIS_DLL_DISABLED   /* DLL not disabled */
+				| AT91C_DDRC2_ENRDM_ENABLE       /* Phase error correction is enabled */
+				| AT91C_DDRC2_NB_BANKS_8
+				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
+				| AT91C_DDRC2_DECOD_INTERLEAVED  /* Interleaved decoding */
+				| AT91C_DDRC2_UNAL_SUPPORTED);   /* Unaligned access is supported */
 
-#if defined(CONFIG_BUS_SPEED_133MHZ)  /* This is defined */
-	/* Timing for MT46H16M32LF (5 & 6) */
+#if defined(CONFIG_BUS_SPEED_133MHZ)
 	/*
-	 * The SDRAM device requires a refresh of all rows at least every 64ms.
-	 * ((64ms) / 8192) * 132 MHz = 1031 i.e. 0x407
+	 * The DDR2-SDRAM device requires a refresh every 15.625 us or 7.81 us.
+	 * With a 133 MHz frequency, the refresh timer count register must to be
+	 * set with (15.625 x 133 MHz) ~ 2084 i.e. 0x824
+	 * or (7.81 x 133 MHz) ~ 1040 i.e. 0x410.
 	 */
-	ddramc_config->rtr = 0x407;     /* Refresh timer: 64 ms */
+	ddramc_config->rtr = 0x411;     /* Refresh timer: 7.8125us */
 
-	/* One clock cycle @ 132 MHz = 7.5758 ns */
-	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5758 = 45 ns */
-			| AT91C_DDRC2_TRCD_(3)		/* 3 * 7.5758 >= 18 ns */
-			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5758 >= 15 ns */
-			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5758 >= 75 ns */
-			| AT91C_DDRC2_TRP_(3)		/* 3 * 7.5758 >= 18 ns */
-			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5758 >= 15 ns */
+	/* One clock cycle @ 133 MHz = 7.5 ns */
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)	/* 6 * 7.5 = 45 ns */
+			| AT91C_DDRC2_TRCD_(2)		/* 2 * 7.5 = 22.5 ns */
+			| AT91C_DDRC2_TWR_(2)		/* 2 * 7.5 = 15   ns */
+			| AT91C_DDRC2_TRC_(8)		/* 8 * 7.5 = 75   ns */
+			| AT91C_DDRC2_TRP_(2)		/* 2 * 7.5 = 15   ns */
+			| AT91C_DDRC2_TRRD_(2)		/* 2 * 7.5 = 15   ns */
 			| AT91C_DDRC2_TWTR_(2)		/* 2 clock cycles min */
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
-	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(1)	/*  1 clock cycles */
-			| AT91C_DDRC2_TXSRD_(0)	    /* 0 clock cycles */
-			| AT91C_DDRC2_TXSNR_(15)	/* 15 * 7.5758 >= 112.5 ns */
-			| AT91C_DDRC2_TRFC_(10));	/* 10 * 7.5758 >= 75 ns */
+	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
+			| AT91C_DDRC2_TXSRD_(200)	/* 200 clock cycles */
+			| AT91C_DDRC2_TXSNR_(28)	/* 195 + 10 = 205ns ==> 28 * 7.5 = 210 ns*/
+			| AT91C_DDRC2_TRFC_(26));	/* 26 * 7.5 = 195 ns */
 
-	ddramc_config->t2pr = AT91C_DDRC2_TRTP_(4);
-
-	ddramc_config->lpr = (AT91C_DDRC2_LPCB_DISABLED
-			| AT91C_DDRC2_CLK_FR
-			| AT91C_DDRC2_LPDDR2_PWOFF_DISABLED
-			| AT91C_DDRC2_PASR_(0)
-			| AT91C_DDRC2_DS_(1)
-			| AT91C_DDRC2_TIMEOUT_0
-			| AT91C_DDRC2_ADPE_FAST
-			| AT91C_DDRC2_UPD_MR_(0));
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(7)	/* 7 * 7.5 = 52.5 ns */
+			| AT91C_DDRC2_TRTP_(2)		/* 2 clock cycles min */
+			| AT91C_DDRC2_TRPA_(2)		/* 2 * 7.5 = 15 ns */
+			| AT91C_DDRC2_TXARDS_(7)	/* 7 clock cycles */
+			| AT91C_DDRC2_TXARD_(8));	/* MR12 = 1 : slow exit power down */
 
 #elif defined(CONFIG_BUS_SPEED_148MHZ)
 
@@ -199,15 +182,8 @@ static void ddramc_init(void)
 {
 	struct ddramc_register ddramc_reg;
 	unsigned int reg;
-	unsigned int old_io_cal_reg;
 
-	memset(&ddramc_reg, 0, sizeof(ddramc_reg));
-
-	/* Setup the parameters we'll pass to the register later */
 	ddramc_reg_config(&ddramc_reg);
-
-	/* For lpddr1, DQ and DQS input buffers must always be set on */
-	writel( SFR_DDRCFG_FDQIEN | SFR_DDRCFG_FDQSIEN, (AT91C_BASE_SFR + SFR_DDRCFG));
 
 	/* enable ddr2 clock */
 	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
@@ -224,40 +200,104 @@ static void ddramc_init(void)
 	/* write master + clk90 offset */
 	reg = AT91C_MPDDRC_MOFF_7
 		| AT91C_MPDDRC_CLK90OFF_31
-		| AT91C_MPDDRC_SELOFF_ENABLED;
+		| AT91C_MPDDRC_SELOFF_ENABLED | AT91C_MPDDRC_KEY;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_DLL_MOR));
 
-	/* setting the LPR to 0 is done before the calibration stuff in the sam-ba code, lets do that */
-	writel(0, (AT91C_BASE_MPDDRC + HDDRSDRC2_LPR));
-
-	/* TODO: verify right values of calibration?
-	 * And what do we do with said calibration?
-	 */
 	/* MPDDRC I/O Calibration Register */
-	/* DDR2 RZQ = 48 Ohm */
-	/* TZQIO = (133 * 10^6) * (20 * 10^-9) + 1 = 3.66 == 4 */
-	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR);
-	old_io_cal_reg = reg;
-	reg &= ~AT91C_MPDDRC_RDIV;
-	reg &= ~AT91C_MPDDRC_TZQIO;
-	reg |= AT91C_MPDDRC_RDIV_DDR2_RZQ_66_7;
-	reg |= AT91C_MPDDRC_TZQIO_4;
+	/* DDR2 RZQ = 50 Ohm */
+	/* TZQIO = 4 */
+	reg = AT91C_MPDDRC_RDIV_DDR2_RZQ_50
+		| AT91C_MPDDRC_TZQIO_4;
 	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
 
-	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_HS);
-	reg |= AT91C_DDRC2_EN_CALIB; /* Don't disturb the rest of the bits */
-	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_HS));
-
 	/* DDRAM2 Controller initialize */
-	lpddram1_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
-
-	dbg_very_loud("Orig value MPDDRC_IO_CALBR: %d\n", old_io_cal_reg);
-	ddramc_print_config_regs(AT91C_BASE_MPDDRC);
-
-	dbg_very_loud("End ddram init\n");
-
+	ddram_initialize(AT91C_BASE_MPDDRC, AT91C_BASE_DDRCS, &ddramc_reg);
 }
 
+#elif defined(CONFIG_LPDDR2)
+
+static void lpddr2_reg_config(struct ddramc_register *ddramc_config)
+{
+	ddramc_config->mdr = (AT91C_DDRC2_DBW_32_BITS
+				| AT91C_DDRC2_MD_LPDDR2_SDRAM);
+
+	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
+				| AT91C_DDRC2_NR_14
+				| AT91C_DDRC2_CAS_3
+				| AT91C_DDRC2_ZQ_SHORT
+				| AT91C_DDRC2_NB_BANKS_8
+				| AT91C_DDRC2_UNAL_SUPPORTED);
+
+	ddramc_config->lpddr2_lpr = AT91C_LPDDRC2_DS(0x03);
+
+	/*
+	 * The MT42128M32 refresh window: 32ms
+	 * Required number of REFRESH commands(MIN): 8192
+	 * (32ms / 8192) * 132MHz = 514 i.e. 0x202
+	 */
+	ddramc_config->rtr = 0x202;
+	ddramc_config->tim_calr = 12;
+
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)
+			| AT91C_DDRC2_TRCD_(2)
+			| AT91C_DDRC2_TWR_(3)
+			| AT91C_DDRC2_TRC_(8)
+			| AT91C_DDRC2_TRP_(2)
+			| AT91C_DDRC2_TRRD_(2)
+			| AT91C_DDRC2_TWTR_(2)
+			| AT91C_DDRC2_TMRD_(3));
+
+	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)
+			| AT91C_DDRC2_TXSNR_(18)
+			| AT91C_DDRC2_TRFC_(17));
+
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(8)
+			| AT91C_DDRC2_TRTP_(2)
+			| AT91C_DDRC2_TRPA_(3)
+			| AT91C_DDRC2_TXARDS_(1)
+			| AT91C_DDRC2_TXARD_(1));
+}
+
+static void lpddr2_init(void)
+{
+	struct ddramc_register ddramc_reg;
+	unsigned int reg;
+
+	lpddr2_reg_config(&ddramc_reg);
+
+	/* enable ddr2 clock */
+	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
+	pmc_enable_system_clock(AT91C_PMC_DDR);
+
+	/* Init the special register for sama5d3x */
+	/* MPDDRC DLL Slave Offset Register: DDR2 configuration */
+	reg = AT91C_MPDDRC_S0OFF(0x04)
+		| AT91C_MPDDRC_S1OFF(0x03)
+		| AT91C_MPDDRC_S2OFF(0x04)
+		| AT91C_MPDDRC_S3OFF(0x04);
+	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_DLL_SOR));
+
+	/* MPDDRC DLL Master Offset Register */
+	/* write master + clk90 offset */
+	reg = AT91C_MPDDRC_MOFF(7)
+		| AT91C_MPDDRC_CLK90OFF(0x1F)
+		| AT91C_MPDDRC_SELOFF_ENABLED | AT91C_MPDDRC_KEY;
+	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_DLL_MOR));
+
+	/* MPDDRC I/O Calibration Register */
+	/* DDR2 RZQ = 50 Ohm */
+	/* TZQIO = 4 */
+	reg = readl(AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR);
+	reg &= ~AT91C_MPDDRC_RDIV;
+	reg &= ~AT91C_MPDDRC_TZQIO;
+	reg |= AT91C_MPDDRC_RDIV_DDR2_RZQ_50;
+	reg |= AT91C_MPDDRC_TZQIO_3;
+	writel(reg, (AT91C_BASE_MPDDRC + MPDDRC_IO_CALIBR));
+
+	/* DDRAM2 Controller initialize */
+	lpddr2_sdram_initialize(AT91C_BASE_MPDDRC,
+				AT91C_BASE_DDRCS, &ddramc_reg);
+}
 #else
 #error "No right DDR-SDRAM device type provided"
 #endif /* #ifdef CONFIG_DDR2 */
@@ -331,6 +371,19 @@ static void at91_special_pio_output_low(void)
 	writel(value, base + PIO_REG_CODR);	/* PIO_CODR */
 }
 
+static void HDMI_Qt1070_workaround(void)
+{
+	/* For the HDMI and QT1070 shar the irq line
+	 * if the HDMI does not initialize, the irq line is pulled down by HDMI,
+	 * so, the irq line can not used by QT1070
+	 */
+	pio_set_gpio_output(AT91C_PIN_PC(31), 1);
+	udelay(33000);
+	pio_set_gpio_output(AT91C_PIN_PC(31), 0);
+	udelay(33000);
+	pio_set_gpio_output(AT91C_PIN_PC(31), 1);
+}
+
 #ifdef CONFIG_HW_INIT
 void hw_init(void)
 {
@@ -371,7 +424,6 @@ void hw_init(void)
 #ifdef CONFIG_DDR2
 	ddramc_init();
 #elif defined(CONFIG_LPDDR2)
-#error lpddr2
 	lpddr2_init();
 #endif
 	/* load one wire information */
@@ -380,6 +432,7 @@ void hw_init(void)
 #ifdef CONFIG_USER_HW_INIT
 	hw_init_hook();
 #endif
+	HDMI_Qt1070_workaround();
 
 #if defined(CONFIG_NANDFLASH_RECOVERY) || defined(CONFIG_DATAFLASH_RECOVERY)
 	/* Init the recovery buttons pins */
@@ -553,7 +606,6 @@ void nandflash_hw_init(void)
 	const struct pio_desc nand_pins[] = {
 		{"NANDALE", AT91C_PIN_PE(21), 0, PIO_PULLUP, PIO_PERIPH_A},
 		{"NANDCLE", AT91C_PIN_PE(22), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NWP", AT91C_PIN_PE(14), 0, PIO_PULLUP, PIO_OUTPUT},
 		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 

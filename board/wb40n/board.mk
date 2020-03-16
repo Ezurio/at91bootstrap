@@ -1,7 +1,7 @@
 CPPFLAGS += \
-	-DCONFIG_AT91SAM9X5EK \
+	-DCONFIG_WB40N \
 	-mcpu=arm926ej-s
 
 ASFLAGS += \
-	-DCONFIG_AT91SAM9X5EK \
+	-DCONFIG_WB40N \
 	-mcpu=arm926ej-s

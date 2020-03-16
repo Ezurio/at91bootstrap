@@ -23,6 +23,9 @@ source "board/sama5d3_xplained/Config.in.board"
 source "board/sama5d3x_cmp/Config.in.board"
 source "board/sama5d4ek/Config.in.board"
 source "board/sama5d4_xplained/Config.in.board"
+source "board/wb40n/Config.in.board"
+source "board/wb45n/Config.in.board"
+source "board/wb50n/Config.in.board"
 
 endchoice
 
@@ -43,6 +46,9 @@ config CONFIG_BOARDNAME
 	default "sama5d3x_cmp" if CONFIG_SAMA5D3X_CMP
 	default "sama5d4_xplained" if CONFIG_SAMA5D4_XPLAINED
 	default "sama5d4ek" if CONFIG_SAMA5D4EK
+	default "wb40n" if CONFIG_WB40N
+	default "wb45n" if CONFIG_WB45N
+	default "wb50n" if CONFIG_WB50N
 
 config AT91SAM9260
 	select CPU_HAS_TWI0
