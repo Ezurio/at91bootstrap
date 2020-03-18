@@ -120,6 +120,7 @@ void hw_init(void)
 	pmc_cfg_mck(MCKR_CSS_SETTINGS, PLL_LOCK_TIMEOUT);
 
 	/* Configure PLLB  */
+	//Needed for USB only, will be enabled at later stage if desired
 	//pmc_cfg_pllb(PLLB_SETTINGS, PLL_LOCK_TIMEOUT);
 
 	/* Enable External Reset */
