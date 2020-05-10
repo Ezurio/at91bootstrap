@@ -125,12 +125,12 @@ static void gpio_init(void)
 {
 	/* Setup WB45NBT custom GPIOs */
 	const struct pio_desc gpios[] = {
-	/*  {"NAME",        PIN NUMBER,     VALUE, ATTRIBUTES, TYPE },*/
-		{"CHIP_PWD_L",	AT91C_PIN_PA(28),	0, PIO_DEFAULT, PIO_OUTPUT},
-		{"VBUS_SENSE",	AT91C_PIN_PB(11),	0, PIO_DEFAULT, PIO_INPUT},
-		{"VBUS_EN",	    AT91C_PIN_PB(12),	0, PIO_DEFAULT, PIO_OUTPUT},
-		{"IRQ",	        AT91C_PIN_PB(18),	0, PIO_PULLUP,  PIO_INPUT},
-		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
+	/*	{"NAME",        PIN NUMBER,     VALUE, ATTRIBUTES,  TYPE },*/
+		{"CHIP_PWD_L",  AT91C_PIN_PA(28),   0, PIO_DEFAULT, PIO_OUTPUT},
+		{"VBUS_SENSE",  AT91C_PIN_PB(11),   0, PIO_DEFAULT, PIO_INPUT},
+		{"VBUS_EN",     AT91C_PIN_PB(12),   0, PIO_DEFAULT, PIO_OUTPUT},
+		{"IRQ",	        AT91C_PIN_PB(18),   0, PIO_PULLUP,  PIO_INPUT},
+		{(char *)0,	    0,                  0, PIO_DEFAULT, PIO_PERIPH_A},
 	};
 
 	/* Configure the PIO controller */
@@ -254,15 +254,15 @@ void nandflash_hw_init(void)
 	writel(reg, AT91C_BASE_CCFG + CCFG_EBICSA);
 
 	/* Configure SMC CS3 */
-	writel((AT91C_SMC_NWESETUP_(1)
+	writel((AT91C_SMC_NWESETUP_(2)
 		| AT91C_SMC_NCS_WRSETUP_(0)
-		| AT91C_SMC_NRDSETUP_(0)
+		| AT91C_SMC_NRDSETUP_(2)
 		| AT91C_SMC_NCS_RDSETUP_(0)),
 		AT91C_BASE_SMC + SMC_SETUP3);
 
-	writel((AT91C_SMC_NWEPULSE_(3)
+	writel((AT91C_SMC_NWEPULSE_(2)
 		| AT91C_SMC_NCS_WRPULSE_(6)
-		| AT91C_SMC_NRDPULSE_(3)
+		| AT91C_SMC_NRDPULSE_(2)
 		| AT91C_SMC_NCS_RDPULSE_(6)),
 		AT91C_BASE_SMC + SMC_PULSE3);
 
