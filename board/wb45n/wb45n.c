@@ -31,9 +31,9 @@ static void at91_dbgu_hw_init(void)
 {
 	/* Configure DBGU pins */
 	const struct pio_desc dbgu_pins[] = {
-		{"RXD", AT91C_PIN_PA(9), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"TXD", AT91C_PIN_PA(10), 0, PIO_DEFAULT, PIO_PERIPH_A},
-		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
+		{ "RXD", AT91C_PIN_PA(9),  0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "TXD", AT91C_PIN_PA(10), 0, PIO_DEFAULT, PIO_PERIPH_A },
+		{ NULL,  0,                0, PIO_DEFAULT, PIO_PERIPH_A },
 	};
 
 	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
@@ -108,7 +108,7 @@ static void ddramc_init(void)
 	/* ENABLE DDR clock */
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
-	/* Chip select 1 is for DDR2/SDRAM */
+	/* Chip select 1 is for DDR/SDRAM */
 	csa = readl(AT91C_BASE_CCFG + CCFG_EBICSA);
 	csa |= AT91C_EBI_CS1A_SDRAMC;
 	csa &= ~AT91C_EBI_DBPUC;
@@ -125,17 +125,30 @@ static void gpio_init(void)
 {
 	/* Setup WB45NBT custom GPIOs */
 	const struct pio_desc gpios[] = {
-	/*	{"NAME",        PIN NUMBER,     VALUE, ATTRIBUTES,  TYPE },*/
-		{"CHIP_PWD_L",  AT91C_PIN_PA(28),   0, PIO_DEFAULT, PIO_OUTPUT},
-		{"VBUS_SENSE",  AT91C_PIN_PB(11),   0, PIO_DEFAULT, PIO_INPUT},
-		{"VBUS_EN",     AT91C_PIN_PB(12),   0, PIO_DEFAULT, PIO_OUTPUT},
-		{"IRQ",	        AT91C_PIN_PB(18),   0, PIO_PULLUP,  PIO_INPUT},
-		{(char *)0,	    0,                  0, PIO_DEFAULT, PIO_PERIPH_A},
+		{ "CHIP_PWD_L",  AT91C_PIN_PA(28),   0, PIO_DEFAULT, PIO_OUTPUT   },
+		{ "VBUS_SENSE",  AT91C_PIN_PB(11),   0, PIO_DEFAULT, PIO_INPUT    },
+		{ "VBUS_EN",     AT91C_PIN_PB(12),   0, PIO_DEFAULT, PIO_OUTPUT   },
+		{ "IRQ",         AT91C_PIN_PB(18),   0, PIO_PULLUP,  PIO_INPUT    },
+		{ NULL,          0,                  0, PIO_DEFAULT, PIO_PERIPH_A },
 	};
 
 	/* Configure the PIO controller */
 	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
 	pio_configure(gpios);
+}
+
+void at91_disable_smd_clock(void)
+{
+	/*
+	 * Set pin DIBP to pull-up and DIBN to pull-down
+	 * to save power on VDDIOP0
+	 */
+	pmc_enable_system_clock(AT91C_PMC_SMDCK);
+	pmc_set_smd_clock_divider(AT91C_PMC_SMDDIV);
+	pmc_enable_periph_clock(AT91C_ID_SMD);
+	writel(0xF, (0x0C + AT91C_BASE_SMD));
+	pmc_disable_periph_clock(AT91C_ID_SMD);
+	pmc_disable_system_clock(AT91C_PMC_SMDCK);
 }
 
 #ifdef CONFIG_HW_INIT
@@ -169,6 +182,9 @@ void hw_init(void)
 	slowclk_enable_osc32();
 #endif
 
+	/* Disable SMD clock to save power */
+	at91_disable_smd_clock();
+
 	/* Initialize dbgu */
 	initialize_dbgu();
 
@@ -192,13 +208,13 @@ static void sdcard_set_of_name_board(char *of_name)
 void at91_mci0_hw_init(void)
 {
 	const struct pio_desc mci_pins[] = {
-		{"MCCK", AT91C_PIN_PA(17), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"MCCDA", AT91C_PIN_PA(16), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"MCDA0", AT91C_PIN_PA(15), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"MCDA1", AT91C_PIN_PA(18), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"MCDA2", AT91C_PIN_PA(19), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"MCDA3", AT91C_PIN_PA(20), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
+		{ "MCCK",  AT91C_PIN_PA(17), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "MCCDA", AT91C_PIN_PA(16), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "MCDA0", AT91C_PIN_PA(15), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "MCDA1", AT91C_PIN_PA(18), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "MCDA2", AT91C_PIN_PA(19), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "MCDA3", AT91C_PIN_PA(20), 0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ NULL,	  0,                 0, PIO_DEFAULT, PIO_PERIPH_A },
 	};
 
 	/* Configure the PIO controller */
@@ -211,39 +227,22 @@ void at91_mci0_hw_init(void)
 	/* Set of name function pointer */
 	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
-#endif /* #ifdef CONFIG_SDCARD */
+#endif /* CONFIG_SDCARD */
 
 #ifdef CONFIG_NANDFLASH
 void nandflash_hw_init(void)
 {
 	unsigned int reg;
 
-	/* Configure Nand PINs */
-	const struct pio_desc nand_pins_hi[] = {
-		{"NANDOE",	CONFIG_SYS_NAND_OE_PIN,		0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDWE",	CONFIG_SYS_NAND_WE_PIN,		0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDALE",	CONFIG_SYS_NAND_ALE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDCLE",	CONFIG_SYS_NAND_CLE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDCS",	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
-		{"D0",	AT91C_PIN_PD(6), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D1",	AT91C_PIN_PD(7), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D2",	AT91C_PIN_PD(8), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D3",	AT91C_PIN_PD(9), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D4",	AT91C_PIN_PD(10), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D5",	AT91C_PIN_PD(11), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D6",	AT91C_PIN_PD(12), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{"D7",	AT91C_PIN_PD(13), 0, PIO_PULLUP, PIO_PERIPH_A},
-		{(char *)0, 0, 0, PIO_DEFAULT, PIO_PERIPH_A},
-	};
-
+	/* Configure NAND PINs */
 	const struct pio_desc nand_pins_lo[] = {
-		{"NANDOE",	CONFIG_SYS_NAND_OE_PIN,		0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDWE",	CONFIG_SYS_NAND_WE_PIN,		0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDALE",	CONFIG_SYS_NAND_ALE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDCLE",	CONFIG_SYS_NAND_CLE_PIN,	0, PIO_PULLUP, PIO_PERIPH_A},
-		{"NANDCS",	CONFIG_SYS_NAND_ENABLE_PIN,	1, PIO_PULLUP, PIO_OUTPUT},
-		{"NWP", AT91C_PIN_PD(10), 0, PIO_PULLUP, PIO_OUTPUT},
-		{(char *)0,	0, 0, PIO_DEFAULT, PIO_PERIPH_A},
+		{ "NANDOE",  CONFIG_SYS_NAND_OE_PIN,     0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "NANDWE",  CONFIG_SYS_NAND_WE_PIN,     0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "NANDALE", CONFIG_SYS_NAND_ALE_PIN,    0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "NANDCLE", CONFIG_SYS_NAND_CLE_PIN,    0, PIO_PULLUP,  PIO_PERIPH_A },
+		{ "NANDCS",  CONFIG_SYS_NAND_ENABLE_PIN, 1, PIO_PULLUP,  PIO_OUTPUT   },
+		{ "NWP",     AT91C_PIN_PD(10),           0, PIO_DEFAULT, PIO_OUTPUT   },
+		{ NULL,      0,                          0, PIO_DEFAULT, PIO_PERIPH_A },
 	};
 
 	reg = readl(AT91C_BASE_CCFG + CCFG_EBICSA);
@@ -283,4 +282,4 @@ void nandflash_hw_init(void)
 
 	pmc_enable_periph_clock(AT91C_ID_PIOC_D);
 }
-#endif /* #ifdef CONFIG_NANDFLASH */
+#endif /* CONFIG_NANDFLASH */
