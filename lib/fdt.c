@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2012, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -183,6 +183,10 @@ static int of_get_token_nextoffset(void *blob,
 			cell++;
 			offset++;
 		} while (*cell != '\0');
+		/* the \0 is part of the node name, hence offset must be updated to the 
+		* position past the \0.
+		*/
+		++offset;
 	} else if (tag == OF_DT_TOKEN_PROP) {
 		/* the property value size */
 		plen = (unsigned int *)of_dt_struct_offset(blob, offset);
@@ -210,6 +214,9 @@ static int of_get_nextnode_offset(void *blob,
 	unsigned int token;
 	int ret;
 
+	if (!offset || !nextoffset || !depth)
+		return -1;
+
 	while(1) {
 		ret = of_get_token_nextoffset(blob, nodeoffset,
 						&next_offset, &token);
@@ -218,8 +225,7 @@ static int of_get_nextnode_offset(void *blob,
 
 		if (token == OF_DT_TOKEN_NODE_BEGIN) {
 			/* find the node start token */
-			if (depth)
-				(*depth)++;
+			(*depth)++;
 
 			break;
 		} else {
@@ -229,8 +235,8 @@ static int of_get_nextnode_offset(void *blob,
 				|| (token == OF_DT_TOKEN_NOP))
 				continue;
 			else if (token == OF_DT_TOKEN_NODE_END) {
-				if (depth)
-					(*depth)--;
+				(*depth)--;
+
 				if ((*depth) < 0)
 					return -1; /* not found */
 			} else if (token == OF_DT_END)
@@ -590,10 +596,11 @@ int fixup_chosen_node(void *blob, char *bootargs)
  */
 int fixup_memory_node(void *blob,
 			unsigned int *mem_bank,
+			unsigned int *mem_bank2,
 			unsigned int *mem_size)
 {
 	int nodeoffset;
-	unsigned int data[2];
+	unsigned int data[4];
 	int valuelen;
 	int ret;
 
@@ -616,10 +623,14 @@ int fixup_memory_node(void *blob,
 	}
 
 	/* set "reg" property */
-	valuelen = 8;
 	data[0] = swap_uint32(*mem_bank);
 	data[1] = swap_uint32(*mem_size);
-
+	valuelen = 8;
+	if (*mem_bank2) {
+		data[2] = swap_uint32(*mem_bank2);
+		data[3] = swap_uint32(*mem_size);
+		valuelen = 16;
+	}
 	ret = of_set_property(blob, nodeoffset, "reg", data, valuelen);
 	if (ret) {
 		dbg_info("DT: could not set reg property\n");

@@ -2,6 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2009, Atmel Corporation
+ *
  * All rights reserved.
  * PSRAM,16 bit SDRAM support courtesy of Epsilon Group
  * Redistribution and use in source and binary forms, with or without
@@ -29,7 +30,7 @@
 #include "arch/at91_ccfg.h"
 #include "arch/at91_matrix.h"
 #include "arch/at91_rstc.h"
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "arch/at91_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_sdramc.h"
@@ -44,10 +45,6 @@
 #include "watchdog.h"
 #include "string.h"
 #include "at91sam9263ek.h"
-
-#ifdef CONFIG_USER_HW_INIT
-extern void hw_init_hook(void);
-#endif
 
 static inline void matrix_writel(const unsigned int value, unsigned int reg)
 {
@@ -392,16 +389,13 @@ void hw_init(void)
 	 * PCK = MCK = MOSC
 	 */
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* PCK = PLLA = 2 * MCK */
-	pmc_cfg_mck(MCKR_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_SETTINGS);
 
 	/* Switch MCK on PLLA output */
-	pmc_cfg_mck(MCKR_CSS_SETTINGS, PLL_LOCK_TIMEOUT);
-
-	/* Configure PLLB */
-	//pmc_cfg_pllb(PLLB_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_CSS_SETTINGS);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN, AT91C_BASE_RSTC + RSTC_RMR);
@@ -421,10 +415,6 @@ void hw_init(void)
 
 #if defined(CONFIG_PSRAM)
 	psram_hw_init();
-#endif
-
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
 #endif
 
 #if defined(CONFIG_NANDFLASH_RECOVERY) || defined(CONFIG_DATAFLASH_RECOVERY)
@@ -456,10 +446,12 @@ void at91_spi0_hw_init(void)
 #endif /* CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	strcpy(of_name, "at91sam9263ek.dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -481,9 +473,6 @@ void at91_mci0_hw_init(void)
 
 	/* Enable the clock */
 	pmc_enable_periph_clock(AT91C_ID_MCI1);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 

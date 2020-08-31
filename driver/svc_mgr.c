@@ -26,7 +26,7 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "svc_mgr.h"
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "pmc.h"
 #include "matrix.h"
 #include "l2cc.h"
@@ -117,7 +117,7 @@ int svc_mgr_main(struct smc_args_t const *args)
 		break;
 
 	case 0x42:
-		l2cache_init();
+		l2cache_enable();
 		break;
 	case 0x50:
 		pmc_smd_setup(args->r1);

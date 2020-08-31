@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,6 +51,7 @@
 #define 	AT91C_PMECC_BCH_ERR8		(0x2UL)
 #define 	AT91C_PMECC_BCH_ERR12		(0x3UL)
 #define 	AT91C_PMECC_BCH_ERR24		(0x4UL)
+#define 	AT91C_PMECC_BCH_ERR32		(0x5UL)
 #define AT91C_PMECC_SECTORSZ	(0x1UL <<  4)	/* Sector Size */
 #define 	AT91C_PMECC_SECTORSZ_512	(0x0UL << 4)
 #define 	AT91C_PMECC_SECTORSZ_1024	(0x1UL << 4)
@@ -117,12 +118,20 @@
 #define PMERRLOC_ELISR		0x020	/* Error Location Interrupt Status Register */
 /* -------- PMERRLOC_ELISR: (Offset: 0x20) Error Location Interrupt Status Register --------*/
 #define PMERRLOC_ELISR_DONE		(0x1)
+#ifdef SAMA5D2
+#define PMERRLOC_ELISR_ERR_CNT		(0x3f << 8)
+#else
 #define PMERRLOC_ELISR_ERR_CNT		(0x1f << 8)
+#endif
 
 /* 0x24 reserved */
 #define PMERRLOC_SIGMA0		0x028	/* PMECC Error Location SIGMA0 Register */
 
+#ifdef SAMA5D2
+#define PMERRLOC_EL0		0x0AC	/* PMECC Error Location 0 Register */
+#else
 #define PMERRLOC_EL0		0x08C	/* PMECC Error Location 0 Register */
+#endif
 
 #define	PMERRLOC_VERSION	0x1FC	/* PMECC Version Register */
 #define		AT91C_PMECC_VERSION_SAMA5D4	0x113

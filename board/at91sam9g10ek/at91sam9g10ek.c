@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support  -  ROUSSET  -
  * ----------------------------------------------------------------------------
  * Copyright (c) 2009, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -30,7 +30,7 @@
 #include "arch/at91_ccfg.h"
 #include "arch/at91sam9g10_matrix.h"
 #include "arch/at91_rstc.h"
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "arch/at91_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_sdramc.h"
@@ -43,10 +43,6 @@
 #include "timer.h"
 #include "watchdog.h"
 #include "at91sam9g10ek.h"
-
-#ifdef CONFIG_USER_HW_INIT
-extern void hw_init_hook(void);
-#endif
 
 static inline void matrix_writel(const unsigned int value, unsigned int reg)
 {
@@ -163,16 +159,13 @@ void hw_init(void)
 	 */
 
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* PCK = PLLA = 2 * MCK */
-	pmc_cfg_mck(MCKR_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_SETTINGS);
 
 	/* Switch MCK on PLLA output */
-	pmc_cfg_mck(MCKR_CSS_SETTINGS, PLL_LOCK_TIMEOUT);
-
-	/* Configure PLLB */
-	//pmc_cfg_pllb(PLLB_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(MCKR_CSS_SETTINGS);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN, AT91C_BASE_RSTC + RSTC_RMR);
@@ -189,10 +182,6 @@ void hw_init(void)
 #ifdef CONFIG_SDRAM
 	/* Initlialize sdram controller */
 	sdramc_init();
-#endif
-
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
 #endif
 
 #if defined(CONFIG_NANDFLASH_RECOVERY) || defined(CONFIG_DATAFLASH_RECOVERY)
@@ -237,10 +226,10 @@ void at91_mci0_hw_init(void)
 	*/
 
 	/* configure mci0 pins */
-	writel(((0x01 < 0) | (0x01 << 1) | (0x01 << 2) | (0x01 < 4)
-			| (0x01 < 5) | (0x01 << 6)), AT91C_BASE_PIOA + PIO_BSR);
-	writel(((0x01 < 0) | (0x01 << 1) | (0x01 << 2) | (0x01 < 4)
-			| (0x01 < 5) | (0x01 << 6)), AT91C_BASE_PIOA + PIO_PDR);
+	writel(((0x01 << 0) | (0x01 << 1) | (0x01 << 2) | (0x01 << 4)
+		| (0x01 << 5) | (0x01 << 6)), AT91C_BASE_PIOA + PIO_BSR);
+	writel(((0x01 << 0) | (0x01 << 1) | (0x01 << 2) | (0x01 << 4)
+		| (0x01 << 5) | (0x01 << 6)), AT91C_BASE_PIOA + PIO_PDR);
 
 	pmc_enable_periph_clock(AT91C_ID_PIOA);
 

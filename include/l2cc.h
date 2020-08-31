@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -28,6 +28,7 @@
 #ifndef __L2CC_H__
 #define __L2CC_H__
 
-void l2cache_init(void);
+void l2cache_prepare(void);
+void l2cache_enable(void);
 
 #endif

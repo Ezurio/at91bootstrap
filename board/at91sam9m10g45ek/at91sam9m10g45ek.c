@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2008, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,7 @@
 #include "hardware.h"
 #include "arch/at91_ccfg.h"
 #include "arch/at91_rstc.h"
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "arch/at91_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_ddrsdrc.h"
@@ -38,15 +38,10 @@
 #include "usart.h"
 #include "debug.h"
 #include "ddramc.h"
-#include "slowclk.h"
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
 #include "at91sam9m10g45ek.h"
-
-#ifdef CONFIG_USER_HW_INIT
-extern void hw_init_hook(void);
-#endif
 
 static void at91_dbgu_hw_init(void)
 {
@@ -78,7 +73,7 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 			| AT91C_DDRC2_NR_14		/* 14 row bits(8K)*/
 			| AT91C_DDRC2_CAS_3		/* CAS Latency 3 */
 			| AT91C_DDRC2_EBISHARE		/* DQM is shared with other controller */
-			| AT91C_DDRC2_DLL_RESET_DISABLED);	/* DLL not reset*/
+			| AT91C_DDRC2_DISABLE_RESET_DLL);
 
 	ddramc_config->rtr = 0x24B;
 
@@ -179,13 +174,13 @@ void hw_init(void)
 	pmc_init_pll(0);
 
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Switch PCK/MCK on Main clock output */
-	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
 
 	/* Switch PCK/MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN, AT91C_BASE_RSTC + RSTC_RMR);
@@ -193,20 +188,12 @@ void hw_init(void)
 	/* Init timer */
 	timer_init();
 
-#ifdef CONFIG_SCLK
-	slowclk_enable_osc32();
-#endif
-
 	/* Initialize dbgu */
 	initialize_dbgu();
 
 #ifdef CONFIG_DDR2
 	/* Initialize DDRAM Controller */
 	ddramc_init();
-#endif
-
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
 #endif
 
 #if defined(CONFIG_NANDFLASH_RECOVERY) || defined(CONFIG_DATAFLASH_RECOVERY)
@@ -238,10 +225,12 @@ void at91_spi0_hw_init(void)
 #endif /* #ifdef CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	strcpy(of_name, "at91sam9m10g45ek.dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -261,9 +250,6 @@ void at91_mci0_hw_init(void)
 
 	/* Enable the clock */
 	pmc_enable_periph_clock(AT91C_ID_MCI0);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 

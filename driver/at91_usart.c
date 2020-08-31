@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2010, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -28,6 +28,8 @@
 #include "hardware.h"
 #include "board.h"
 #include "arch/at91_dbgu.h"
+
+#ifdef CONFIG_USART
 
 #ifndef USART_BASE
 #define USART_BASE	AT91C_BASE_DBGU
@@ -94,3 +96,12 @@ char usart_getc(void)
 
 	return (char)read_usart(DBGU_RHR);
 }
+
+#else
+
+void usart_puts(const char *ptr)
+{
+
+}
+
+#endif

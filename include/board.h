@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,6 +68,18 @@
 #include "at91sam9n12ek.h"
 #endif
 
+#ifdef CONFIG_SAM9X60EK
+#include "sam9x60ek.h"
+#endif
+
+#ifdef CONFIG_SAM9X60_DDR2_SIP_EB
+#include "sam9x60_ddr2_sip_eb.h"
+#endif
+
+#ifdef CONFIG_SAM9X60_SDR_SIP_EB
+#include "sam9x60_sdr_sip_eb.h"
+#endif
+
 #ifdef CONFIG_SAMA5D3XEK
 #include "sama5d3xek.h"
 #endif
@@ -88,17 +100,31 @@
 #include "sama5d4_xplained.h"
 #endif
 
-#ifdef CONFIG_WB40N
-#include "wb40n.h"
+#ifdef CONFIG_SAMA5D2_PTC_EK
+#include "sama5d2_ptc_ek.h"
 #endif
 
-#ifdef CONFIG_WB45N
-#include "wb45n.h"
+#ifdef CONFIG_SAMA5D2_XPLAINED
+#include "sama5d2_xplained.h"
 #endif
 
-#ifdef CONFIG_WB50N
-#include "wb50n.h"
+#ifdef CONFIG_SAMA5D27_SOM1_EK
+#include "sama5d27_som1_ek.h"
 #endif
+
+#ifdef CONFIG_SAMA5D27_WLSOM1_EK
+#include "sama5d27_wlsom1_ek.h"
+#endif
+
+#ifdef CONFIG_SAMA5D2_LPDDR2SIP_VB
+#include "sama5d2_lpddr2sip_vb.h"
+#endif
+
+#ifdef CONFIG_SAMA5D2_ICP
+#include "sama5d2_icp.h"
+#endif
+
+#include "contrib_board.h"
 
 /*
  * Functions Prototype
@@ -109,9 +135,19 @@ extern void nandflash_hw_init(void);
 
 extern void at91_spi0_hw_init(void);
 
+extern void at91_qspi_hw_init(void);
+
 extern void at91_mci0_hw_init(void);
+extern void at91_mci1_hw_init(void);
+extern void at91_mci2_hw_init(void);
+
+extern void at91_sdhc_hw_init(void);
+
+extern void at91_board_set_dtb_name(char *of_name);
 
 extern void norflash_hw_init(void);
+
+extern char *board_override_cmd_line(void);
 
 /* PM Support */
 extern unsigned int at91_twi0_hw_init(void);

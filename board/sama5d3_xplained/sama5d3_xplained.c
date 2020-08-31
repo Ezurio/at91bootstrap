@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2014, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,12 +33,11 @@
 #include "ddramc.h"
 #include "spi.h"
 #include "gpio.h"
-#include "slowclk.h"
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
 
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "arch/at91_rstc.h"
 #include "arch/sama5_smc.h"
 #include "arch/at91_pio.h"
@@ -79,8 +78,8 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
 				| AT91C_DDRC2_NR_13
 				| AT91C_DDRC2_CAS_3
-				| AT91C_DDRC2_DLL_RESET_DISABLED
-				| AT91C_DDRC2_DIS_DLL_DISABLED
+				| AT91C_DDRC2_DISABLE_RESET_DLL
+				| AT91C_DDRC2_ENABLE_DLL
 				| AT91C_DDRC2_ENRDM_ENABLE
 				| AT91C_DDRC2_NB_BANKS_8
 				| AT91C_DDRC2_NDQS_DISABLED
@@ -212,7 +211,7 @@ static void at91_special_pio_output_low(void)
 	base = AT91C_BASE_PIOB;
 	value = GMAC_PINS;
 
-	writel((1 << AT91C_ID_PIOB), (PMC_PCER + AT91C_BASE_PMC));
+	pmc_enable_periph_clock(AT91C_ID_PIOB);
 
 	writel(value, base + PIO_REG_PPUDR);	/* PIO_PPUDR */
 	writel(value, base + PIO_REG_PPDDR);	/* PIO_PPDDR */
@@ -223,7 +222,7 @@ static void at91_special_pio_output_low(void)
 	base = AT91C_BASE_PIOC;
 	value = EMAC_PINS;
 
-	writel((1 << AT91C_ID_PIOC), (PMC_PCER + AT91C_BASE_PMC));
+	pmc_enable_periph_clock(AT91C_ID_PIOC);
 
 	writel(value, base + PIO_REG_PPUDR);	/* PIO_PPUDR */
 	writel(value, base + PIO_REG_PPDDR);	/* PIO_PPDDR */
@@ -285,14 +284,12 @@ void at91_disable_mac_clock(void)
 }
 #endif
 
-#if defined(CONFIG_TWI0)
+#ifdef CONFIG_TWI
 unsigned int at91_twi0_hw_init(void)
 {
 	return 0;
 }
-#endif
 
-#if defined(CONFIG_TWI1)
 unsigned int at91_twi1_hw_init(void)
 {
 	unsigned int base_addr = AT91C_BASE_TWI1;
@@ -310,14 +307,11 @@ unsigned int at91_twi1_hw_init(void)
 
 	return base_addr;
 }
-#endif
 
-#if defined(CONFIG_TWI2)
 unsigned int at91_twi2_hw_init(void)
 {
 	return 0;
 }
-#endif
 
 #if defined(CONFIG_AUTOCONFIG_TWI_BUS)
 void at91_board_config_twi_bus(void)
@@ -325,8 +319,9 @@ void at91_board_config_twi_bus(void)
 	act8865_twi_bus	= 1;
 }
 #endif
+#endif
 
-#if defined(CONFIG_DISABLE_ACT8865_I2C)
+#if defined(CONFIG_ACT8865_SET_VOLTAGE)
 int at91_board_act8865_set_reg_voltage(void)
 {
 	unsigned char reg, value;
@@ -336,27 +331,19 @@ int at91_board_act8865_set_reg_voltage(void)
 	if (act8865_check_i2c_disabled())
 		return 0;
 
-	/* Enable REG2 output 1.25V */
-	reg = REG2_0;
-	value = ACT8865_1V25;
-	ret = act8865_set_reg_voltage(reg, value);
-	if (ret) {
-		dbg_info("ACT8865: Failed to make REG2 output 1250mV\n");
-		return -1;
-	}
-
-	dbg_info("ACT8865: The REG2 output 1250mV\n");
-
 	/* Enable REG5 output 3.3V */
 	reg = REG5_0;
 	value = ACT8865_3V3;
 	ret = act8865_set_reg_voltage(reg, value);
-	if (ret) {
-		dbg_info("ACT8865: Failed to make REG5 output 3300mV\n");
-		return -1;
-	}
+	if (ret)
+		console_printf("ACT8865: Failed to make REG5 output 3300mV\n");
 
-	dbg_info("ACT8865: The REG5 output 3300mV\n");
+	/* Enable REG2 output 1.25V */
+	reg = REG2_0;
+	value = ACT8865_1V25;
+	ret = act8865_set_reg_voltage(reg, value);
+	if (ret)
+		console_printf("ACT8865: Failed to make REG2 output 1250mV\n");
 
 	return 0;
 }
@@ -390,16 +377,16 @@ void hw_init(void)
 	 */
 
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Initialize PLLA charge pump */
 	pmc_init_pll(AT91C_PMC_IPLLA_3);
 
 	/* Switch PCK/MCK on Main clock output */
-	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
 
 	/* Switch PCK/MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
 
 #ifdef CONFIG_USER_HW_INIT
 	/* Set GMAC & EMAC pins to output low */
@@ -409,16 +396,16 @@ void hw_init(void)
 	/* Init timer */
 	timer_init();
 
-#ifdef CONFIG_SCLK
-	slowclk_enable_osc32();
-#endif
-
 	/* initialize the dbgu */
 	initialize_dbgu();
 
 #ifdef CONFIG_DDR2
 	/* Initialize MPDDR Controller */
 	ddramc_init();
+#endif
+
+#if defined(CONFIG_TWI)
+	twi_init();
 #endif
 }
 #endif /* #ifdef CONFIG_HW_INIT */
@@ -445,10 +432,12 @@ void at91_spi0_hw_init(void)
 #endif /* #ifdef CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	strcat(of_name, "at91-sama5d3_xplained.dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -473,9 +462,6 @@ void at91_mci0_hw_init(void)
 
 	/* Enable the clock */
 	pmc_enable_periph_clock(AT91C_ID_HSMCI0);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 
@@ -530,3 +516,17 @@ void nandflash_hw_init(void)
 		(ATMEL_BASE_SMC + SMC_MODE3));
 }
 #endif /* #ifdef CONFIG_NANDFLASH */
+
+#if defined(CONFIG_TWI)
+void twi_init()
+{
+	twi_bus_init(at91_twi0_hw_init);
+	twi_bus_init(at91_twi1_hw_init);
+	twi_bus_init(at91_twi2_hw_init);
+
+#if defined(CONFIG_AUTOCONFIG_TWI_BUS)
+	dbg_loud("Auto-Config the TWI Bus by the board\n");
+	at91_board_config_twi_bus();
+#endif
+}
+#endif

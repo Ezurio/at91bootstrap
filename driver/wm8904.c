@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -219,7 +219,7 @@ int wm8904_enter_low_power(void)
 		return -1;
 	}
 
-	dbg_info("WM8904: Enter Low-power mode\n");
+	dbg_loud("WM8904: Enter Low-power mode\n");
 
 	return 0;
 }

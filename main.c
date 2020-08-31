@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,134 +26,67 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "common.h"
-#include "hardware.h"
 #include "board.h"
 #include "usart.h"
-#include "debug.h"
 #include "slowclk.h"
-#include "dataflash.h"
-#include "nandflash.h"
-#include "sdcard.h"
-#include "flash.h"
-#include "string.h"
 #include "board_hw_info.h"
 #include "tz_utils.h"
 #include "pm.h"
 #include "act8865.h"
+#include "backup.h"
 #include "secure.h"
+#include "sfr_aicredir.h"
 
-#include "memtest.h"
-
-extern int load_kernel(struct image_info *img_info);
-
-typedef int (*load_function)(struct image_info *img_info);
-
-static load_function load_image;
-
-void (*sdcard_set_of_name)(char *) = NULL;
-
-static int init_loadfunction(void)
-{
-#if defined(CONFIG_LOAD_LINUX) || defined(CONFIG_LOAD_ANDROID)
-	load_image = &load_kernel;
-#else
-#if defined (CONFIG_DATAFLASH)
-	load_image = &load_dataflash;
-#elif defined(CONFIG_FLASH)
-	load_image = &load_norflash;
-#elif defined(CONFIG_NANDFLASH)
-	load_image = &load_nandflash;
-#elif defined(CONFIG_SDCARD)
-	load_image = &load_sdcard;
-#else
-#error "No booting media_str specified!"
-#endif
-#endif
-	return 0;
-}
-
+#ifdef CONFIG_HW_DISPLAY_BANNER
 static void display_banner (void)
 {
-	char *version = "AT91Bootstrap";
-	char *ver_num = " "AT91BOOTSTRAP_VERSION" ("COMPILE_TIME")";
-
-	usart_puts("\n");
-	usart_puts("\n");
-	usart_puts(version);
-	usart_puts(ver_num);
-	usart_puts("\n");
-	usart_puts("\n");
+	usart_puts(BANNER);
 }
+#endif
 
 int main(void)
 {
+#if !defined(CONFIG_LOAD_NONE)
 	struct image_info image;
-	char *media_str = NULL;
-	int ret;
-
-	char filename[FILENAME_BUF_LEN];
-	char of_filename[FILENAME_BUF_LEN];
-
-	memset(&image, 0, sizeof(image));
-	memset(filename, 0, FILENAME_BUF_LEN);
-	memset(of_filename, 0, FILENAME_BUF_LEN);
-
-	image.dest = (unsigned char *)JUMP_ADDR;
-#ifdef CONFIG_OF_LIBFDT
-	image.of = 1;
-	image.of_dest = (unsigned char *)OF_ADDRESS;
 #endif
-
-#ifdef CONFIG_FLASH
-	media_str = "FLASH: ";
-	image.offset = IMG_ADDRESS;
-#if !defined(CONFIG_LOAD_LINUX) && !defined(CONFIG_LOAD_ANDROID)
-	image.length = IMG_SIZE;
-#endif
-#ifdef CONFIG_OF_LIBFDT
-	image.of_offset = OF_OFFSET;
-#endif
-#endif
-
-#ifdef CONFIG_NANDFLASH
-	media_str = "NAND: ";
-	image.offset = IMG_ADDRESS;
-#if !defined(CONFIG_LOAD_LINUX) && !defined(CONFIG_LOAD_ANDROID)
-	image.length = IMG_SIZE;
-#endif
-#ifdef CONFIG_OF_LIBFDT
-	image.of_offset = OF_OFFSET;
-#endif
-#endif
-
-#ifdef CONFIG_DATAFLASH
-	media_str = "SF: ";
-	image.offset = IMG_ADDRESS;
-#if !defined(CONFIG_LOAD_LINUX) && !defined(CONFIG_LOAD_ANDROID)
-	image.length = IMG_SIZE;
-#endif
-#ifdef CONFIG_OF_LIBFDT
-	image.of_offset = OF_OFFSET;
-#endif
-#endif
-
-#ifdef CONFIG_SDCARD
-	media_str = "SD/MMC: ";
-	image.filename = filename;
-	strcpy(image.filename, IMAGE_NAME);
-#ifdef CONFIG_OF_LIBFDT
-	image.of_filename = of_filename;
-#endif
-#endif
+	int ret = 0;
 
 #ifdef CONFIG_HW_INIT
 	hw_init();
 #endif
 
+#if defined(CONFIG_SCLK)
+#if !defined(CONFIG_SCLK_BYPASS)
+	slowclk_enable_osc32();
+#endif
+#elif defined(CONFIG_SCLK_INTRC)
+	slowclk_switch_rc32();
+#endif
+
+#ifdef CONFIG_BACKUP_MODE
+	ret = backup_mode_resume();
+	if (ret) {
+		/* Backup+Self-Refresh mode detected... */
+#ifdef CONFIG_REDIRECT_ALL_INTS_AIC
+		redirect_interrupts_to_nsaic();
+#endif
+		slowclk_switch_osc32();
+
+		/* ...jump to Linux here */
+		return ret;
+	}
+	usart_puts("Backup mode enabled\n");
+#endif
+
+#ifdef CONFIG_HW_DISPLAY_BANNER
 	display_banner();
+#endif
+
+#ifdef CONFIG_REDIRECT_ALL_INTS_AIC
+	redirect_interrupts_to_nsaic();
+#endif
 
 #ifdef CONFIG_LOAD_HW_INFO
-	/* Load board hw informaion */
 	load_board_hw_info();
 #endif
 
@@ -161,49 +94,17 @@ int main(void)
 	at91_board_pm();
 #endif
 
-#ifdef CONFIG_DISABLE_ACT8865_I2C
+#ifdef CONFIG_ACT8865
 	act8865_workaround();
+
+	act8945a_suspend_charger();
 #endif
 
-	init_loadfunction();
+#if !defined(CONFIG_LOAD_NONE) && !defined(CONFIG_SKIP_COPY_IMAGE)
+	init_load_image(&image);
 
 #if defined(CONFIG_SECURE)
 	image.dest -= sizeof(at91_secure_header_t);
-#endif
-
-#if defined(CONFIG_MEMTEST)
-	void * retptr;
-	int i;
-
-	dbg_info("Doing memtest on load area %d, size: %d\n", CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
-
-	for(i = 0; i < CONFIG_MEMTEST_ITTERATIONS; i++)
-	{
-		dbg_info("Memtest iteration %d\n", i);
-		dbg_info("Testing databus...\n");
-		ret = memTestDataBus( (void *)CONFIG_MEMTEST_START );
-		if( ret != 0 )
-		{
-			dbg_info( "    FAILED. Pattern == %d\n", ret );
-		}
-
-		dbg_info("Testing address bus...\n");
-		retptr = memTestAddressBus((void *)CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
-		if( retptr != NULL )
-		{
-			dbg_info( "    FAILED. At address == %d\n", retptr );
-			buf_dump((unsigned char *)retptr, 0, 128);
-		}
-
-		dbg_info("Testing device...\n");
-		retptr = memTestDevice((void *)CONFIG_MEMTEST_START, CONFIG_MEMTEST_SIZE);
-		if( retptr != NULL )
-		{
-			dbg_info( "    FAILED. At address == %d\n", retptr );
-			buf_dump((unsigned char *)retptr, 0, 128);
-		}
-	}
-	dbg_info("Finished memtest, loading u-boot\n");
 #endif
 
 	ret = (*load_image)(&image);
@@ -214,23 +115,15 @@ int main(void)
 	image.dest += sizeof(at91_secure_header_t);
 #endif
 
-	if (media_str)
-		usart_puts(media_str);
-
-	if (ret == 0){
-		usart_puts("Done to load image\n");
-	}
-	if (ret == -1) {
-		usart_puts("Failed to load image\n");
-		while(1);
-	}
-	if (ret == -2) {
-		usart_puts("Success to recovery\n");
-		while (1);
-	}
+#endif
+	load_image_done(ret);
 
 #ifdef CONFIG_SCLK
+#ifdef CONFIG_SCLK_BYPASS
+	slowclk_switch_osc32_bypass();
+#else
 	slowclk_switch_osc32();
+#endif
 #endif
 
 #if defined(CONFIG_ENTER_NWD)
@@ -239,5 +132,9 @@ int main(void)
 	/* point never reached with TZ support */
 #endif
 
+#if !defined(CONFIG_LOAD_NONE)
 	return JUMP_ADDR;
+#else
+	return 0;
+#endif
 }

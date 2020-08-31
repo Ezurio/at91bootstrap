@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,6 +34,9 @@ enum pio_type {
 	PIO_PERIPH_B,
 	PIO_PERIPH_C,
 	PIO_PERIPH_D,
+	PIO_PERIPH_E,
+	PIO_PERIPH_F,
+	PIO_PERIPH_G,
 	PIO_INPUT,
 	PIO_OUTPUT
 };
@@ -44,6 +47,10 @@ enum pio_type {
 #define PIO_DEGLITCH	(1 << 1)
 #define PIO_OPENDRAIN	(1 << 2)
 #define PIO_PULLDOWN	(1 << 3)
+#define PIO_DRVSTR_LO	(1 << 4)
+#define PIO_DRVSTR_ME	(1 << 5)
+#define PIO_DRVSTR_HI	(1 << 6)
+#define PIO_SLEWR_CTRL	(1 << 7)
 
 struct pio_desc {
 	const char	*pin_name;	/* Pin Name */
