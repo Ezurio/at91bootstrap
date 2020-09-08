@@ -58,6 +58,8 @@ static struct nand_chip nand_ids[] = {
 	{0x2cda, 0x800, 0x20000, 0x800, 0x40, 0x0},
 	/* Micron MT29F2G08ABD 256MB */
 	{0x2caa, 0x800, 0x20000, 0x800, 0x40, 0x0},
+	/* Micron MT29F4G08ABA 512MB */
+	{0x2cdc, 0x800, 0x40000, 0x1000, 0xe0, 0x0},
 	/* Mircon MT29H8G08ACAH1 1GB */
 	{0x2c38, 0x800, 0x80000, 0x1000, 0xe0, 0x0},
 #ifndef CONFIG_AT91SAM9260EK
@@ -65,6 +67,8 @@ static struct nand_chip nand_ids[] = {
 	{0xadda, 0x800, 0x20000, 0x800, 0x40, 0x0},
 	/* Hynix HY27UF162G2A 256MB */
 	{0xadca, 0x800, 0x20000, 0x800, 0x40, 0x1},
+	/* Hynix HY27UF162G2B 512MB */
+	{0xaddc, 0x1000, 0x20000, 0x800, 0x40, 0x0},
 	/* EON EN27LN1G08 128MB */
 	{0x92f1, 0x400, 0x20000, 0x800, 0x40, 0x0},
 #endif
@@ -227,6 +231,7 @@ static void nand_set_feature_on_die_ecc(unsigned char is_enable)
 	nand_command(CMD_SET_FEATURE);
 	nand_address(0x90);
 
+	udelay(100);
 	if (is_enable)
 		write_byte(0x08);
 	else
@@ -235,6 +240,7 @@ static void nand_set_feature_on_die_ecc(unsigned char is_enable)
 	for (i = 0; i < 3; i++)
 		write_byte(0x00);
 
+	nand_wait_ready();
 	nand_cs_disable();
 }
 
@@ -247,6 +253,8 @@ static unsigned char nand_get_feature_on_die_ecc(void)
 
 	nand_command(CMD_GET_FEATURE);
 	nand_address(0x90);
+	nand_wait_ready();
+	nand_command(CMD_READ_1);
 
 	for (i = 0; i < 4; i++)
 		buffer[i] = read_byte();
@@ -296,6 +304,19 @@ static int nand_init_on_die_ecc(void)
 }
 #endif /* #ifdef CONFIG_USE_ON_DIE_ECC_SUPPORT */
 
+static void nandflash_read_id(unsigned char *manf_id, unsigned char *dev_id)
+{
+	nand_cs_enable();
+
+	nand_command(CMD_READID);
+	nand_address(0x00);
+
+	*manf_id = read_byte();
+	*dev_id = read_byte();
+
+	nand_cs_disable();
+}
+
 #ifdef CONFIG_ONFI_DETECT_SUPPORT
 static unsigned short onfi_crc16(unsigned short crc,
 				unsigned char const *p,
@@ -314,9 +335,17 @@ static unsigned short onfi_crc16(unsigned short crc,
 
 #define ONFI_PARAMS_SIZE		256
 
-#define PARAMS_OFFSET_BUSWIDTH		6
-#define PARAMS_OFFSET_MODEL		49
-#define PARAMS_OFFSET_JEDEC_ID		64
+#define PARAMS_OFFSET_REVISION		4
+#define		PARAMS_REVISION_1_0	(0x1 << 1)
+#define		PARAMS_REVISION_2_0	(0x1 << 2)
+#define		PARAMS_REVISION_2_1	(0x1 << 3)
+
+#define PARAMS_OFFSET_FEATURES		6
+#define		PARAMS_FEATURE_BUSWIDTH		(0x1 << 0)
+#define		PARAMS_FEATURE_EXTENDED_PARAM	(0x1 << 7)
+
+#define PARAMS_OFFSET_EXT_PARAM_PAGE_LEN	12
+#define PARAMS_OFFSET_PARAMETER_PAGE		14
 #define PARAMS_OFFSET_PAGESIZE		80
 #define PARAMS_OFFSET_OOBSIZE		84
 #define PARAMS_OFFSET_BLOCKSIZE		92
@@ -325,6 +354,59 @@ static unsigned short onfi_crc16(unsigned short crc,
 #define PARAMS_OFFSET_CRC		254
 
 #define ONFI_CRC_BASE			0x4F4E
+
+#define ONFI_MAX_SECTIONS		8
+
+#define ONFI_SECTION_TYPE_0		0
+#define ONFI_SECTION_TYPE_1		1
+#define ONFI_SECTION_TYPE_2		2
+
+static int get_ext_onfi_param(unsigned char *eccbits,
+			      unsigned int *eccwordsize,
+			      unsigned int len)
+{
+	unsigned char ext_params[ONFI_PARAMS_SIZE];
+	unsigned char *param = ext_params;
+	unsigned char *p = ext_params;
+	unsigned char *section, *table;
+	unsigned short crc;
+	unsigned int i;
+
+	for (i = 0; i < len; i++)
+		*p++ = read_byte();
+
+	crc = *(unsigned short *)(param);
+	if (onfi_crc16(ONFI_CRC_BASE,
+		       (unsigned char *)(param + 2), len - 2) != crc) {
+		dbg_info("NAND: Failed in the integrity CRC\n");
+		return -1;
+	}
+
+	if ((param[2] != 'E') || (param[3] != 'P') ||
+	    (param[4] != 'P') || (param[5] != 'S')) {
+		dbg_info("NAND: No Extended Parameter Page\n");
+		return -1;
+	}
+
+	section = param + 16;
+	table =  param + 32;
+	for (i = 0; i < ONFI_MAX_SECTIONS; i++) {
+		if ((*section) == ONFI_SECTION_TYPE_2)
+			break;
+		table += *(section + 1) * 16;
+		section += 2;
+	}
+
+	if (i == ONFI_MAX_SECTIONS) {
+		dbg_info("NAND: Not find the ECC section\n");
+		return -1;
+	}
+
+	*eccbits = *table;
+	*eccwordsize = 0x01 << *(table + 1);
+
+	return 0;
+}
 
 static int nandflash_detect_onfi(struct nand_chip *chip)
 {
@@ -335,6 +417,8 @@ static int nandflash_detect_onfi(struct nand_chip *chip)
 	int i, j;
 	unsigned short crc;
 	unsigned char manf_id, dev_id;
+	unsigned short features, revision, ext_page_len;
+	unsigned char num_param_page;
 
 	nand_cs_enable();
 	nand_command(CMD_READID);
@@ -375,25 +459,52 @@ static int nandflash_detect_onfi(struct nand_chip *chip)
 			break;
 	}
 
-	nand_cs_disable();
-
 	if (i == 3) {
 		dbg_info("NAND: ONFI para CRC error!\n");
+		nand_cs_disable();
 		return -1;
 	}
+
+	revision = *(unsigned short *)(p + PARAMS_OFFSET_REVISION);
+	features = *(unsigned short *)(p + PARAMS_OFFSET_FEATURES);
+	ext_page_len = *(unsigned short *)(p +
+					   PARAMS_OFFSET_EXT_PARAM_PAGE_LEN);
+	num_param_page = *(unsigned char *)(p + PARAMS_OFFSET_PARAMETER_PAGE);
 
 	chip->numblocks = *(unsigned short *)(p + PARAMS_OFFSET_NBBLOCKS);
 	chip->pagesize	= *(unsigned short *)(p + PARAMS_OFFSET_PAGESIZE);
 	chip->blocksize = *(unsigned int  *)(p + PARAMS_OFFSET_BLOCKSIZE)
 							* chip->pagesize;
 	chip->oobsize	= *(unsigned short *)(p + PARAMS_OFFSET_OOBSIZE);
-	chip->buswidth	= (*(unsigned char *)(p + PARAMS_OFFSET_BUSWIDTH))
-								& 0x01;
+	chip->buswidth	= features & PARAMS_FEATURE_BUSWIDTH;
 	chip->eccbits	= *(unsigned char *)(p + PARAMS_OFFSET_ECC_BITS);
+	chip->eccwordsize = 512;
 
-	manf_id = *(unsigned char *)(p + PARAMS_OFFSET_JEDEC_ID);
-	dev_id = *(unsigned char *)(p + PARAMS_OFFSET_MODEL);
-	dbg_info("NAND: Manufacturer ID: %d Chip ID: %d\n", manf_id, dev_id);
+	if ((chip->eccbits == 0xff) &&
+	    (revision & PARAMS_REVISION_2_1) &&
+	    (features & PARAMS_FEATURE_EXTENDED_PARAM)) {
+		/* read the redundent parameter pages */
+		for (; i < (num_param_page - 1) * ONFI_PARAMS_SIZE; i++)
+			read_byte();
+
+		/* read extended parameter pages */
+		if (get_ext_onfi_param(&chip->eccbits,
+				       &chip->eccwordsize,
+				       ext_page_len * 16)) {
+			dbg_info("NAND: Failed to get extended parameter table\n");
+			return -1;
+		}
+	}
+
+	nand_cs_disable();
+
+	nandflash_read_id(&manf_id, &dev_id);
+
+	dbg_info("NAND: Manufacturer ID: %x Chip ID: %x\n", manf_id, dev_id);
+	dbg_info("NAND: Page Bytes: %d, Spare Bytes: %d\n" \
+		 "NAND: ECC Correctability Bits: %d, ECC Sector Bytes: %d\n",
+		 chip->pagesize, chip->oobsize,
+		 chip->eccbits, chip->eccwordsize);
 
 	return 0;
 }
@@ -401,22 +512,13 @@ static int nandflash_detect_onfi(struct nand_chip *chip)
 
 static int nandflash_detect_non_onfi(struct nand_chip *chip)
 {
-	int manf_id, dev_id;
+	unsigned char manf_id, dev_id;
 	unsigned int chipid;
 	unsigned int i;
 
-	nand_cs_enable();
+	nandflash_read_id(&manf_id, &dev_id);
 
-	/* Reading device ID */
-	nand_command(CMD_READID);
-	nand_address(0x00);
-
-	manf_id  = read_byte();
-	dev_id   = read_byte();
-
-	nand_cs_disable();
-
-	chipid = (manf_id << 8) | dev_id;
+	chipid = ((unsigned int)manf_id << 8) | dev_id;
 
 	for (i = 0; i < ARRAY_SIZE(nand_ids); i++) {
 		if (chipid == nand_ids[i].chip_id)
@@ -424,13 +526,13 @@ static int nandflash_detect_non_onfi(struct nand_chip *chip)
 	}
 
 	if (i == ARRAY_SIZE(nand_ids)) {
-		dbg_info("NAND: Not found Manufacturer ID: %d," \
-			"Chip ID: 0x%d\n", manf_id, dev_id);
+		dbg_info("NAND: Not found Manufacturer ID: %x," \
+			"Chip ID: %x\n", manf_id, dev_id);
 
 		return -1;
 	}
 
-	dbg_info("NAND: Manufacturer ID: %d Chip ID: %d\n",
+	dbg_info("NAND: Manufacturer ID: %x Chip ID: %x\n",
 						manf_id, dev_id);
 
 	chip->pagesize	= nand_ids[i].pagesize;
@@ -442,7 +544,7 @@ static int nandflash_detect_non_onfi(struct nand_chip *chip)
 	return 0;
 }
 
-static void nand_info_init(struct nand_info *nand, struct nand_chip *chip)
+static int nand_info_init(struct nand_info *nand, struct nand_chip *chip)
 {
 	/* number of blocks in device */
 	nand->numblocks = chip->numblocks;
@@ -459,7 +561,8 @@ static void nand_info_init(struct nand_info *nand, struct nand_chip *chip)
 	/* Total number of bytes in a sector */
 	nand->sectorsize = nand->pagesize + nand->oobsize;
 #ifdef CONFIG_USE_PMECC
-	choose_pmecc_info(nand, chip);
+	if (choose_pmecc_info(nand, chip))
+		return -1;
 #endif
 	/* the layout of the spare area */
 	config_nand_ooblayout(&nand_oob_layout, nand, chip);
@@ -474,6 +577,8 @@ static void nand_info_init(struct nand_info *nand, struct nand_chip *chip)
 		nand->command = nand_command;
 		nand->address = nand_address;
 	}
+
+	return 0;
 }
 
 static void nandflash_reset(void)
@@ -516,9 +621,7 @@ static int nandflash_get_type(struct nand_info *nand)
 		return -1;
 #endif
 
-	nand_info_init(nand, chip);
-	
-	return 0;
+	return nand_info_init(nand, chip);
 }
 
 static void write_column_address(struct nand_info *nand,
@@ -857,6 +960,8 @@ static int nand_loadimage(struct nand_info *nand,
 	unsigned int end_page;
 	unsigned int numpages = 0;
 	unsigned int offsetpage = 0;
+	unsigned int block_remaining = nand->blocksize
+				       - mod(offset, nand->blocksize);
 	int ret;
 
 	division(offset, nand->blocksize, &block, &start_page);
@@ -864,10 +969,10 @@ static int nand_loadimage(struct nand_info *nand,
 
 	while (length > 0) {
 		/* read a buffer corresponding to a block */
-		if (length < nand->blocksize)
+		if (length < block_remaining)
 			readsize = length;
 		else
-			readsize = nand->blocksize;
+			readsize = block_remaining;
 
 		/* adjust the number of pages to read */
 		division(readsize, nand->pagesize, &numpages, &offsetpage);
@@ -882,7 +987,7 @@ static int nand_loadimage(struct nand_info *nand,
 					block, buffer) != 0) {
 				block++; /* skip this block */
 				dbg_info("NAND: Bad block:" \
-					" #%d\n", block);
+					" #%x\n", block);
 			} else
 				break;
 		}
@@ -900,13 +1005,13 @@ static int nand_loadimage(struct nand_info *nand,
 
 		block++;
 		start_page = 0;
+		block_remaining = nand->blocksize;
 	}
 
 	return 0;
 }
 
 #if defined(CONFIG_LOAD_LINUX) || defined(CONFIG_LOAD_ANDROID)
-
 static int update_image_length(struct nand_info *nand,
 				unsigned int offset,
 				unsigned char *dest,
@@ -922,11 +1027,13 @@ static int update_image_length(struct nand_info *nand,
 	if (flag == KERNEL_IMAGE)
 		return kernel_size(dest);
 #ifdef CONFIG_OF_LIBFDT
-	else
-		return of_get_dt_total_size((void *)dest);
-#else
-	return -1;
+	else {
+		ret = check_dt_blob_valid((void *)dest);
+		if (!ret)
+			return of_get_dt_total_size((void *)dest);
+	}
 #endif
+	return -1;
 }
 #endif
 
@@ -963,31 +1070,29 @@ int load_nandflash(struct image_info *image)
 	image->length = length;
 #endif
 
-	dbg_info("NAND: Image: Copy %d bytes from %d to %d\n",
+	dbg_info("NAND: Image: Copy %x bytes from %x to %x\n",
 			image->length, image->offset, image->dest);
 
 	ret = nand_loadimage(&nand, image->offset, image->length, image->dest);
 	if (ret)
 		return ret;
 
-	if (image->of) {
-#if defined(CONFIG_LOAD_LINUX) || defined(CONFIG_LOAD_ANDROID)
-		length = update_image_length(&nand,
-				image->of_offset, image->of_dest, DT_BLOB);
-		if (length == -1)
-			return -1;
+#ifdef CONFIG_OF_LIBFDT
+	length = update_image_length(&nand,
+			image->of_offset, image->of_dest, DT_BLOB);
+	if (length == -1)
+		return -1;
 
-		image->of_length = length;
+	image->of_length = length;
+
+	dbg_info("NAND: dt blob: Copy %x bytes from %x to %x\n",
+		image->of_length, image->of_offset, image->of_dest);
+
+	ret = nand_loadimage(&nand, image->of_offset,
+				image->of_length, image->of_dest);
+	if (ret)
+		return ret;
 #endif
-
-		dbg_info("NAND: dt blob: Copy %d bytes from %d to %d\n",
-			image->of_length, image->of_offset, image->of_dest);
-
-		ret = nand_loadimage(&nand, image->of_offset,
-					image->of_length, image->of_dest);
-		if (ret)
-			return ret;
-	}
 
 	return 0;
  }

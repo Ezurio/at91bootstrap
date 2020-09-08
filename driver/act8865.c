@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -94,12 +94,15 @@ int act8865_set_reg_voltage(unsigned char volt_reg, unsigned char value)
 
 	switch (volt_reg) {
 	case REG1_0:
+	case REG1_1:
 		enable_reg = REG1_2;
 		break;
 	case REG2_0:
+	case REG2_1:
 		enable_reg = REG2_2;
 		break;
 	case REG3_0:
+	case REG3_1:
 		enable_reg = REG3_2;
 		break;
 	case REG4_0:
@@ -122,6 +125,10 @@ int act8865_set_reg_voltage(unsigned char volt_reg, unsigned char value)
 	ret = act8865_write(volt_reg, value);
 	if (ret)
 		return -1;
+
+	if ((enable_reg == REG1_2) || (enable_reg == REG2_2) ||
+	    (enable_reg == REG3_2))
+		return 0;
 
 	/* Enable Regulator */
 	data = 0;
@@ -180,10 +187,10 @@ int act8865_set_power_saving_mode(void)
 		reg = reg_list[i];
 		ret = act8865_set_reg_mode(reg, mode);
 		if (ret)
-			dbg_loud("ACT8865: Failed to set Power-saving mode\n");
+			console_printf("ACT8865: Failed to set Power-saving mode\n");
 	}
 
-	dbg_info("ACT8865: Set REG1/REG2/REG3 Power-saving mode\n");
+	console_printf("ACT8865: Set REG1/REG2/REG3 Power-saving mode\n");
 
 	return 0;
 }
@@ -257,28 +264,94 @@ static int act8865_workaround_disable_i2c(void)
 	}
 
 	if (i >= ARRAY_SIZE(version_array)) {
-		dbg_loud("ACT8865: Failed to disable I2C interface\n");
+		console_printf("ACT8865: Failed to disable I2C interface\n");
 		return -1;
 	}
 
-	dbg_info("ACT8865: Disable ACT8865's I2C interface\n");
+	console_printf("ACT8865: Disable ACT8865's I2C interface\n");
 
 	return 0;
 }
+#endif
 
+#if defined(CONFIG_ACT8865)
 void act8865_workaround(void)
 {
 	if (!twi_init_done)
 		twi_init();
 
+#if defined(CONFIG_ACT8865_SET_VOLTAGE)
 	/* Set ACT8865 REG output voltage */
 	at91_board_act8865_set_reg_voltage();
+#endif
 
+#if defined(CONFIG_DISABLE_ACT8865_I2C)
 	/* Disable ACT8865 I2C interface, if failed, don't go on */
 	if (act8865_workaround_disable_i2c()) {
-		dbg_info("ACT8865: Failed to disable I2C interface\n");
+		console_printf("ACT8865: Failed to disable I2C interface\n");
 		while (1)
 			;
 	}
+#endif
+}
+#endif
+
+/**
+ * ACT8945A Charger Registers Map
+ */
+/* 0x70: Reserved */
+#define ACT8945A_APCH_CFG		0x71
+#define ACT8945A_APCH_STATUS		0x78
+#define ACT8945A_APCH_CTRL		0x79
+#define ACT8945A_APCH_STATE		0x7A
+
+/* ACT8945A_APCH_CFG */
+#define APCH_CFG_OVPSET			(0x3 << 0)
+#define APCH_CFG_PRETIMO		(0x3 << 2)
+#define APCH_CFG_TOTTIMO		(0x3 << 4)
+#define APCH_CFG_SUSCHG			(0x1 << 7)
+
+/* ACT8945A_APCH_STATE */
+#define APCH_STATE_ACINSTAT		(0x1 << 1)
+#define APCH_STATE_CSTATE		(0x3 << 4)
+#define APCH_STATE_CSTATE_SHIFT		4
+#define APCH_STATE_CSTATE_DISABLED	0x00
+#define APCH_STATE_CSTATE_EOC		0x01
+#define APCH_STATE_CSTATE_FAST		0x02
+#define APCH_STATE_CSTATE_PRE		0x03
+
+#ifdef CONFIG_SUSPEND_ACT8945A_CHARGER
+int act8945a_suspend_charger(void)
+{
+	unsigned char data;
+	int ret;
+
+	if (!twi_init_done)
+		twi_init();
+
+	ret = act8865_read(ACT8945A_APCH_CFG, &data);
+	if (ret)
+		return -1;
+
+	data |= APCH_CFG_SUSCHG;
+	ret = act8865_write(ACT8945A_APCH_CFG, data);
+	if (ret)
+		return -1;
+
+	ret = act8865_read(ACT8945A_APCH_STATE, &data);
+	if (ret)
+		return -1;
+
+	if ((data & APCH_STATE_CSTATE) != APCH_STATE_CSTATE_DISABLED) {
+		console_printf("ACT8945A: Failed to suspend charger\n");
+		return -1;
+	}
+
+	return 0;
+}
+#else
+int act8945a_suspend_charger(void)
+{
+	return 0;
 }
 #endif

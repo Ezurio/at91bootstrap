@@ -1,0 +1,2 @@
+config CONFIG_BOARDNAME
+	default "wb45n"	if CONFIG_WB45N

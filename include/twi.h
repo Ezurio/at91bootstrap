@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -44,5 +44,6 @@ extern int twi_write(unsigned int twi_no, unsigned char device_addr,
 		unsigned char *data, unsigned int bytes);
 
 extern void twi_init(void);
+extern void twi_bus_init(unsigned int (*at91_twi_hw_init)(void));
 
 #endif

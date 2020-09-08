@@ -1,0 +1,12 @@
+config CONFIG_WB40N
+	bool "wb40n"
+	select AT91SAM9G20
+	select CONFIG_SDRAM
+	select ALLOW_SDRAM_16BIT
+	select ALLOW_NANDFLASH
+	select ALLOW_SDCARD
+	select ALLOW_CPU_CLK_400MHZ
+	select ALLOW_CRYSTAL_18_432MHZ
+	select SUPPORT_BUS_SPEED_133MHZ
+	help
+	    Use the WB40N Module

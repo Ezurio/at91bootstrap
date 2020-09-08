@@ -29,9 +29,18 @@
 #include "board_hw_info.h"
 #include "debug.h"
 
-#define	EK_AT24XX_ADDR		0x54
-
+#ifdef CONFIG_SAMA5D2_ICP
+/* ICP EK has different EEPROM */
+#define	EK_AT24XX_ADDR		0x50
+#define	MAX_AT24XX_BYTES	128
+#elif defined(CONFIG_SAM9X60EK) || defined(CONFIG_SAM9X60_DDR2_SIP_EB)
+#define	EK_AT24XX_ADDR		0x53
+#define	MAX_AT24XX_BYTES	128
+#else
+#define EK_AT24XX_ADDR		0x54
 #define	MAX_AT24XX_BYTES	256
+#endif
+
 #define EK_INFO_OFFSET		(MAX_AT24XX_BYTES - HW_INFO_TOTAL_SIZE)
 
 static unsigned int at24_get_twi_bus(void)
@@ -75,15 +84,18 @@ int load_ek_at24xx(unsigned char *buff, unsigned int length)
 	unsigned char dev_addr = EK_AT24XX_ADDR;
 	unsigned char offset = EK_INFO_OFFSET;
 	int ret = 0;
-	unsigned int i;
-	unsigned char *tmp = buff;
+
+	if (!twi_init_done)
+		twi_init();
 
 	ret = at24_read(dev_addr, offset, buff, length);
 
-	dbg_loud("EEPROM Buff:\n");
-	for (i = 0; i < length; i++)
-		dbg_loud("%d ", *tmp++);
-	dbg_loud("\n");
+	if (!ret) {
+		dbg_loud("EEPROM Buff:\n");
+#if (BOOTSTRAP_DEBUG_LEVEL >= DEBUG_LOUD)
+		dbg_hexdump(buff, length, DUMP_WIDTH_BIT_8);
+#endif
+	}
 
 	return ret;
 }

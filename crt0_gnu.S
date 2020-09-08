@@ -73,6 +73,16 @@ fiq_vector:
 	b 	fiq_vector
 reset_vector:
 
+#if defined(CONFIG_CPU_V7)
+	/*
+	 * We must configure VBAR for the reset vectors to be at
+	 * the start of SRAM (CONFIG_LINK_ADDR)
+	 */
+	mrc     p15, 0, r2, c12, c0, 0 /* Read VBAR into R2 */
+	mov	r2,#LINK_ADDR
+	mcr	p15, 0, r2, c12, c0, 0
+#endif /* CONFIG_CPU_V7 */
+
 #ifdef BACKUP_REGISTER_BOOT_MODE_R4
 	ldr	r1, =BACKUP_REGISTER_BOOT_MODE_R4
 	str	r4, [r1]
@@ -111,9 +121,11 @@ _relocate_to_sram:
 	bcc     1b
 #endif /* CONFIG_FLASH */
 
+#if defined(CONFIG_PMC_COMMON)
 	ldr     r4, = lowlevel_clock_init
 	mov     lr, pc
 	bx      r4
+#endif /* CONFIG_PMC */
 
 #if defined(CONFIG_CPU_V7)
 /* Clear Abort condition if it is pending with help of the abort handler */
@@ -173,8 +185,14 @@ _go:
 	ldr 	r1, =MACH_TYPE
 	mov     lr, pc
 
-#if defined(CONFIG_ENTER_NWD)
+/* we endless loop here and not jump to any application
+ * if we are configured to not load anything
+ */
+#if defined(CONFIG_ENTER_NWD) || defined(CONFIG_LOAD_NONE)
 loop:
+#ifdef CONFIG_BKPT_NOTIFY_DONE
+	bkpt
+#endif
 	b	loop
 #endif
 

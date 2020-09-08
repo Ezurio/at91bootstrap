@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -27,36 +27,34 @@
  */
 #include "common.h"
 #include "hardware.h"
-#include "arch/at91_pmc.h"
+#include "board.h"
+#include "arch/at91_pmc/pmc.h"
 #include "string.h"
 #include "slowclk.h"
 #include "dataflash.h"
 #include "nandflash.h"
+#include "flash.h"
 #include "sdcard.h"
 #include "fdt.h"
 #include "board_hw_info.h"
 #include "mon.h"
 #include "tz_utils.h"
+#include "secure.h"
 
 #include "debug.h"
 
-#ifdef CONFIG_LOAD_ANDROID
-#ifdef CONFIG_SAMA5D3XEK
-static char *cmd_line_android_pda = LINUX_KERNEL_ARG_STRING \
-		" androidboot.hardware=sama5d3x-pda";
-
-static char *cmd_line_android = LINUX_KERNEL_ARG_STRING \
-		" androidboot.hardware=sama5d3x-ek";
-#endif /* #ifdef CONFIG_SAMA5D3XEK */
-#endif /* #ifdef CONFIG_LOAD_ANDROID */
+static char *bootargs;
 
 #ifdef CONFIG_OF_LIBFDT
 
 static int setup_dt_blob(void *blob)
 {
-	char *bootargs = LINUX_KERNEL_ARG_STRING;
-	char *p;
 	unsigned int mem_bank = MEM_BANK;
+#ifdef MEM_BANK2
+	unsigned int mem_bank2 = MEM_BANK2;
+#else
+	unsigned int mem_bank2 = 0;
+#endif
 	unsigned int mem_size = MEM_SIZE;
 	int ret;
 
@@ -65,42 +63,32 @@ static int setup_dt_blob(void *blob)
 		return -1;
 	}
 
-	dbg_info("\nUsing device tree in place at %d\n",
+	dbg_info("\nUsing device tree in place at %x\n",
 						(unsigned int)blob);
 
-#if defined(CONFIG_LOAD_ANDROID) && defined(CONFIG_SAMA5D3XEK)
-	if (get_dm_sn() == BOARD_ID_PDA_DM)
-		bootargs = cmd_line_android_pda;
-	else
-		bootargs = cmd_line_android;
-#endif
+	/* no point in fixing if we do not have configured bootargs */
+	if (bootargs && *bootargs) {
+		char *p;
 
-	/* set "/chosen" node */
-	for (p = bootargs; *p == ' '; p++)
-		;
+		/* set "/chosen" node */
+		for (p = bootargs; *p == ' '; p++) /* skip spaces */
+			;
 
-	if (*p == '\0')
-		return -1;
+		if (*p == '\0')
+			return -1;
 
-	ret = fixup_chosen_node(blob, p);
-	if (ret)
-		return ret;
+		ret = fixup_chosen_node(blob, p);
+		if (ret)
+			return ret;
+	}
 
-	ret = fixup_memory_node(blob, &mem_bank, &mem_size);
+	ret = fixup_memory_node(blob, &mem_bank, &mem_bank2, &mem_size);
 	if (ret)
 		return ret;
 
 	return 0;
 }
-
-static void setup_boot_params(void) {}
-
 #else
-static int setup_dt_blob(void *blob)
-{
-	return 0;
-}
-
 #define TAG_FLAG_NONE		0x00000000
 #define TAG_FLAG_CORE		0x54410001
 #define TAG_FLAG_MEM		0x54410002
@@ -196,7 +184,7 @@ static void setup_boot_params(void)
 	params = (unsigned int *)params + TAG_SIZE_MEM32;
 
 	struct tag_cmdline *cmdparam = (struct tag_cmdline *)params;
-	setup_commandline_tag(cmdparam, LINUX_KERNEL_ARG_STRING);
+	setup_commandline_tag(cmdparam, bootargs);
 
 	params = (unsigned int *)params + cmdparam->header.size;
 
@@ -224,10 +212,24 @@ static void setup_boot_params(void)
 }
 #endif /* #ifdef CONFIG_OF_LIBFDT */
 
-#if defined(CONFIG_LINUX_UIMAGE)
+#if defined(CONFIG_LINUX_IMAGE)
+
+#if defined(CONFIG_QSPI_XIP)
+
+int kernel_size(unsigned char *add)
+{
+	return 0;
+}
+
+static int boot_image_setup(unsigned char *addr, unsigned int *entry)
+{
+	*entry = (unsigned int)addr;
+	return 0;
+}
+#else
+
 /* Linux uImage Header */
 #define LINUX_UIMAGE_MAGIC	0x27051956
-
 struct linux_uimage_header {
 	unsigned int	magic;
 	unsigned int	header_crc;
@@ -243,55 +245,8 @@ struct linux_uimage_header {
 	unsigned char	name[32];
 };
 
-static int boot_uimage_setup(unsigned char *addr, unsigned int *entry)
-{
-	struct linux_uimage_header *image_header
-			= (struct linux_uimage_header *)addr;
-	unsigned int src, dest;
-	unsigned int size;
-	unsigned int magic;
-
-	dbg_info("\nBooting uImage ......\n");
-	magic = swap_uint32(image_header->magic);
-	dbg_info("uImage magic: %d is found\n", magic);
-	if (magic != LINUX_UIMAGE_MAGIC) {
-		dbg_info("** Bad uImage magic found: %d\n", magic);
-		return -1;
-	}
-
-	if (image_header->comp_type != 0) {
-		dbg_info("The uImage compress type not supported\n");
-		return -1;
-	}
-
-	size = swap_uint32(image_header->size);
-	dest = swap_uint32(image_header->load);
-	src = (unsigned int)addr + sizeof(struct linux_uimage_header);
-
-	dbg_info("Relocating kernel image, dest: %d, src: %d\n", dest, src);
-
-	memcpy((void *)dest, (void *)src, size);
-
-	dbg_info(" ...... %d bytes data transferred\n", size);
-
-	*entry = swap_uint32(image_header->entry_point);
-
-	return 0;
-}
-
-unsigned int kernel_size(unsigned char *addr)
-{
-	struct linux_uimage_header *image_header
-		= (struct linux_uimage_header *)addr;
-
-	return swap_uint32(image_header->size)
-			+ sizeof(struct linux_uimage_header);
-}
-
-#elif defined(CONFIG_LINUX_ZIMAGE)
-
+/* Linux zImage Header */
 #define	LINUX_ZIMAGE_MAGIC	0x016f2818
-
 struct linux_zimage_header {
 	unsigned int	code[9];
 	unsigned int	magic;
@@ -299,34 +254,78 @@ struct linux_zimage_header {
 	unsigned int	end;
 };
 
-static int boot_zimage_setup(unsigned char *addr, unsigned int *entry)
+int kernel_size(unsigned char *addr)
 {
-	struct linux_zimage_header *image_header
+	struct linux_uimage_header *uimage_header
+			= (struct linux_uimage_header *)addr;
+
+	struct linux_zimage_header *zimage_header
+			= (struct linux_zimage_header *)addr;
+	unsigned int size = -1;
+	unsigned int magic = swap_uint32(uimage_header->magic);
+
+	if (magic == LINUX_UIMAGE_MAGIC)
+		size = swap_uint32(uimage_header->size)
+			+ sizeof(struct linux_uimage_header);
+
+	if (zimage_header->magic == LINUX_ZIMAGE_MAGIC)
+		size = zimage_header->end - zimage_header->start;
+
+	if ((int)size < 0)
+		return -1;
+
+	return (int)size;
+}
+
+static int boot_image_setup(unsigned char *addr, unsigned int *entry)
+{
+	struct linux_zimage_header *zimage_header
 			= (struct linux_zimage_header *)addr;
 
-	dbg_info("\nBooting zImage ......\n");
-	dbg_info("zImage magic: %d is found\n", image_header->magic);
-	if (image_header->magic != LINUX_ZIMAGE_MAGIC) {
-		dbg_info("** Bad zImage magic found: %d\n",
-					image_header->magic);
-		return -1;
+	struct linux_uimage_header *uimage_header
+			= (struct linux_uimage_header *)addr;
+	unsigned int src, dest;
+	unsigned int size;
+	unsigned int magic;
+
+	dbg_loud("try zImage magic: %x is found\n", zimage_header->magic);
+	if (zimage_header->magic == LINUX_ZIMAGE_MAGIC) {
+		*entry = ((unsigned int)addr + zimage_header->start);
+		dbg_info("\nBooting zImage ......\n");
+		return 0;
 	}
 
-	*entry = ((unsigned int)addr + image_header->start);
+	magic = swap_uint32(uimage_header->magic);
+	dbg_loud("try uImage magic: %x is found\n", magic);
+	if (magic == LINUX_UIMAGE_MAGIC) {
+		dbg_info("\nBooting uImage ......\n");
 
-	return 0;
+		if (uimage_header->comp_type != 0) {
+			dbg_info("The uImage compress type not supported\n");
+			return -1;
+		}
+
+		size = swap_uint32(uimage_header->size);
+		dest = swap_uint32(uimage_header->load);
+		src = (unsigned int)addr + sizeof(struct linux_uimage_header);
+		*entry = swap_uint32(uimage_header->entry_point);
+
+		dbg_info("Relocating kernel image, dest: %x, src: %x\n",
+				dest, src);
+
+		memcpy((void *)dest, (void *)src, size);
+
+		dbg_info(" ...... %x bytes data transferred\n", size);
+
+		return 0;
+	}
+
+	dbg_info("** Bad uImage magic: %x, zImage magic: %x\n",
+			magic, zimage_header->magic);
+	return -1;
 }
-
-unsigned int kernel_size(unsigned char *addr)
-{
-	struct linux_zimage_header *image_header
-		= (struct linux_zimage_header *)addr;
-
-	return image_header->end - image_header->start;
-}
-#else
-#error "No Linux image type provided!"
-#endif
+#endif /* !CONFIG_QSPI_XIP */
+#endif /* CONFIG_LINUX_IMAGE */
 
 static int load_kernel_image(struct image_info *image)
 {
@@ -334,10 +333,14 @@ static int load_kernel_image(struct image_info *image)
 
 #if defined(CONFIG_DATAFLASH)
 	ret = load_dataflash(image);
+#elif defined(CONFIG_FLASH)
+	ret = load_norflash(image);
 #elif defined(CONFIG_NANDFLASH)
 	ret = load_nandflash(image);
 #elif defined(CONFIG_SDCARD)
 	ret = load_sdcard(image);
+#else
+#error "No booting media specified!"
 #endif
 	if (ret)
 		return ret;
@@ -345,9 +348,21 @@ static int load_kernel_image(struct image_info *image)
 	return 0;
 }
 
+#ifdef CONFIG_OVERRIDE_CMDLINE_FROM_EXT_FILE
+__attribute__((weak)) char *board_override_cmd_line_ext(char *cmdline_args)
+{
+        return cmdline_args;
+}
+#endif
+
+__attribute__((weak)) char *board_override_cmd_line(void)
+{
+	return CMDLINE;
+}
+
 int load_kernel(struct image_info *image)
 {
-	unsigned char *addr = image->dest;
+	unsigned char *addr;
 	unsigned int entry_point;
 	unsigned int r2;
 	unsigned int mach_type;
@@ -355,48 +370,57 @@ int load_kernel(struct image_info *image)
 
 	void (*kernel_entry)(int zero, int arch, unsigned int params);
 
+	bootargs = board_override_cmd_line();
+
 	ret = load_kernel_image(image);
 	if (ret)
 		return ret;
+
+#ifdef CONFIG_OVERRIDE_CMDLINE_FROM_EXT_FILE
+	bootargs = board_override_cmd_line_ext(image->cmdline_args);
+#endif
+#if defined(CONFIG_SECURE)
+	ret = secure_check(image->dest);
+	if (ret)
+		return ret;
+	image->dest += sizeof(at91_secure_header_t);
+#endif
 
 #ifdef CONFIG_SCLK
 	slowclk_switch_osc32();
 #endif
 
-#if defined(CONFIG_LINUX_UIMAGE)
-	ret = boot_uimage_setup(addr, &entry_point);
-#elif defined(CONFIG_LINUX_ZIMAGE)
-	ret = boot_zimage_setup(addr, &entry_point);
-#else
-#error "No Linux image type provided!"
+	addr = image->dest;
+#if defined(CONFIG_LINUX_IMAGE)
+	ret = boot_image_setup(addr, &entry_point);
 #endif
 	if (ret)
 		return -1;
 
 	kernel_entry = (void (*)(int, int, unsigned int))entry_point;
 
-	if (image->of) {
-		ret = setup_dt_blob((char *)image->of_dest);
-		if (ret)
-			return ret;
+#ifdef CONFIG_OF_LIBFDT
+	ret = setup_dt_blob((char *)image->of_dest);
+	if (ret)
+		return ret;
 
-		mach_type = 0xffffffff;
-		r2 = (unsigned int)image->of_dest;
-	} else {
-		setup_boot_params();
+	mach_type = 0xffffffff;
+	r2 = (unsigned int)image->of_dest;
+#else
+	setup_boot_params();
 
-		mach_type = MACH_TYPE;
-		r2 = (unsigned int)(MEM_BANK + 0x100);
-	}
+	mach_type = MACH_TYPE;
+	r2 = (unsigned int)(MEM_BANK + 0x100);
+#endif
 
-	dbg_info("\nStarting linux kernel ..., machid: %d\n\n",
+	dbg_info("\nStarting linux kernel ..., machid: %x\n\n",
 							mach_type);
 #if defined(CONFIG_ENTER_NWD)
 	monitor_init();
 
 	init_loadkernel_args(0, mach_type, r2, (unsigned int)kernel_entry);
 
-	dbg_info("Enter Normal World, Run Kernel at %d\n",
+	dbg_info("Enter Normal World, Run Kernel at %x\n",
 					(unsigned int)kernel_entry);
 
 	enter_normal_world();

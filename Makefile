@@ -23,9 +23,15 @@ endif
 
 BINDIR:=$(TOPDIR)/binaries
 
-DATE := $(shell date)
-LRD_BLD_NUMBER := 3.5.5.0
-VERSION := 3.7.1
+# see https://reproducible-builds.org/docs/source-date-epoch/#makefile
+DATE_FMT = %Y-%m-%d
+ifdef SOURCE_DATE_EPOCH
+	DATE ?= $(shell date -u -d "@$(SOURCE_DATE_EPOCH)" "+$(DATE_FMT)"  2>/dev/null || date -u -r "$(SOURCE_DATE_EPOCH)" "+$(DATE_FMT)" 2>/dev/null || date -u "+$(DATE_FMT)")
+else
+	DATE := $(shell date)
+endif
+LRD_BLD_NUMBER := 0.0.0.0
+VERSION := 3.9.3
 REVISION := $(LRD_BLD_NUMBER)
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
 
@@ -133,13 +139,20 @@ MEMORY := $(strip $(subst ",,$(CONFIG_MEMORY)))
 IMAGE_NAME:= $(strip $(subst ",,$(CONFIG_IMAGE_NAME)))
 CARD_SUFFIX := $(strip $(subst ",,$(CONFIG_CARD_SUFFIX)))
 MEM_BANK := $(strip $(subst ",,$(CONFIG_MEM_BANK)))
+MEM_BANK2 := $(strip $(subst ",,$(CONFIG_MEM_BANK2)))
 MEM_SIZE := $(strip $(subst ",,$(CONFIG_MEM_SIZE)))
 LINUX_KERNEL_ARG_STRING := $(strip $(subst ",,$(CONFIG_LINUX_KERNEL_ARG_STRING)))
+LINUX_KERNEL_ARG_STRING_FILE := $(strip $(subst ",,$(CONFIG_LINUX_KERNEL_ARG_STRING_FILE)))
 
 # Board definitions
 BOARDNAME:=$(strip $(subst ",,$(CONFIG_BOARDNAME)))
 
+ifeq ($(CONFIG_OVERRIDE_MACH_TYPE), y)
+MACH_TYPE:=$(strip $(subst ",,$(CONFIG_CUSTOM_MACH_TYPE)))
+else
 MACH_TYPE:=$(strip $(subst ",,$(CONFIG_MACH_TYPE)))
+endif
+
 LINK_ADDR:=$(strip $(subst ",,$(CONFIG_LINK_ADDR)))
 DATA_SECTION_ADDR:=$(strip $(subst ",,$(CONFIG_DATA_SECTION_ADDR)))
 TOP_OF_MEMORY:=$(strip $(subst ",,$(CONFIG_TOP_OF_MEMORY)))
@@ -164,27 +177,31 @@ BLOB:=
 endif
 
 ifeq ($(CONFIG_LOAD_LINUX), y)
-TARGET_NAME:=linux-$(subst I,i,$(IMAGE_NAME))
+TARGET_NAME:=linux-$(or $(subst I,i,$(IMAGE_NAME)),image)
 endif
 
 ifeq ($(CONFIG_LOAD_ANDROID), y)
-TARGET_NAME:=android-$(subst I,i,$(IMAGE_NAME))
+TARGET_NAME:=android-$(or $(subst I,i,$(IMAGE_NAME)),image)
 endif
 
 ifeq ($(CONFIG_LOAD_UBOOT), y)
-TARGET_NAME:=$(subst -,,$(basename $(IMAGE_NAME)))
+TARGET_NAME:=$(or $(subst -,,$(basename $(IMAGE_NAME))),uboot)
 endif
 
 ifeq ($(CONFIG_LOAD_64KB), y)
-TARGET_NAME:=$(basename $(IMAGE_NAME))
+TARGET_NAME:=$(or $(basename $(IMAGE_NAME)),softpack)
 endif
 
 ifeq ($(CONFIG_LOAD_1MB), y)
-TARGET_NAME:=$(basename $(IMAGE_NAME))
+TARGET_NAME:=$(or $(basename $(IMAGE_NAME)),softpack)
 endif
 
 ifeq ($(CONFIG_LOAD_4MB), y)
-TARGET_NAME:=$(basename $(IMAGE_NAME))
+TARGET_NAME:=$(or $(basename $(IMAGE_NAME)),softpack)
+endif
+
+ifeq ($(CONFIG_LOAD_NONE), y)
+TARGET_NAME:=$(or $(basename $(IMAGE_NAME)),none)
 endif
 
 BOOT_NAME=$(BOARDNAME)-$(PROJECT)$(CARD_SUFFIX)boot-$(TARGET_NAME)$(BLOB)
@@ -198,32 +215,54 @@ ifeq ($(SYMLINK),)
 SYMLINK=at91bootstrap.bin
 endif
 
-COBJS-y:= $(TOPDIR)/main.o $(TOPDIR)/board/$(BOARDNAME)/$(BOARDNAME).o
+ifeq ($(SYMLINK_BOOT),)
+SYMLINK_BOOT=boot.bin
+endif
+
+COBJS-y:= $(TOPDIR)/main.o
 SOBJS-y:= $(TOPDIR)/crt0_gnu.o
 
-include	lib/libc.mk
+BOARD_LOCATE=$(shell find $(TOPDIR)/board/ -name $(BOARDNAME) -type d)
+ifeq ("$(realpath $(BOARD_LOCATE))", "")
+BOARD_LOCATE=$(shell find $(TOPDIR)/contrib/board/ -name $(BOARDNAME) -type d)
+ifeq ("$(realpath $(BOARD_LOCATE))", "")
+$(error ERROR: *** file: $(BOARD_LOCATE) does not found!)
+endif
+endif
+
+COBJS-y += $(BOARD_LOCATE)/$(BOARDNAME).o
+INCL = $(BOARD_LOCATE)
+
+include	lib/lib.mk
 include	driver/driver.mk
+include	contrib/driver/driver.mk
 include	fs/src/fat.mk
 
-#$(SOBJS-y:.o=.S)
-
-SRCS:= $(COBJS-y:.o=.c)
-OBJS:= $(SOBJS-y) $(COBJS-y)
-INCL=board/$(BOARDNAME)
 GC_SECTIONS=--gc-sections
 
 NOSTDINC_FLAGS=-nostdinc -isystem $(shell $(CC) -print-file-name=include)
 
 CPPFLAGS=$(NOSTDINC_FLAGS) -ffunction-sections -g -Os -Wall \
-	-fno-stack-protector -fno-common \
-	-I$(INCL) -Iinclude -Ifs/include -I$(TOPDIR)/config/at91bootstrap-config \
+	-mno-unaligned-access \
+	-fno-stack-protector -fno-common -fno-builtin -fno-jump-tables -fno-pie \
+	-I$(INCL) -Icontrib/include -Iinclude -Ifs/include \
+	-I$(TOPDIR)/config/at91bootstrap-config \
 	-DAT91BOOTSTRAP_VERSION=\"$(VERSION)$(REV)$(SCMINFO)\" -DCOMPILE_TIME="\"$(DATE)\""
 
-ASFLAGS=-g -Os -Wall -I$(INCL) -Iinclude
+ASFLAGS=-g -Os -Wall -I$(INCL) -Iinclude -Icontrib/include
 
 include	toplevel_cpp.mk
 include	board/board_cpp.mk
+
+ifneq ("$(wildcard $(BOARD_LOCATE)/board.mk)", "")
+include $(BOARD_LOCATE)/board.mk
+else
+$(warning WARNING: *** file: $(BOARD_LOCATE)/board.mk are not found!)
+endif
+
 include	driver/driver_cpp.mk
+
+OBJS:= $(SOBJS-y) $(COBJS-y)
 
 ifeq ($(CONFIG_ENTER_NWD), y)
 link_script:=elf32-littlearm-tz.lds
@@ -237,12 +276,14 @@ endif
 #    --cref:    add cross reference to map file
 #  -lc 	   : 	tells the linker to tie in newlib
 #  -lgcc   : 	tells the linker to tie in newlib
-LDFLAGS+=-nostartfiles -Map=$(BINDIR)/$(BOOT_NAME).map --cref -static
+LDFLAGS=-nostartfiles -Map=$(BINDIR)/$(BOOT_NAME).map --cref -static
 LDFLAGS+=-T $(link_script) $(GC_SECTIONS) -Ttext $(LINK_ADDR)
 
 ifneq ($(DATA_SECTION_ADDR),)
 LDFLAGS+=-Tdata $(DATA_SECTION_ADDR)
 endif
+
+REMOVE_SECTIONS=-R .note -R .comment -R .note.gnu.build-id
 
 gccversion := $(shell expr `$(CC) -dumpversion`)
 
@@ -258,7 +299,7 @@ TARGETS=$(AT91BOOTSTRAP)
 
 PHONY:=all
 
-all: CheckCrossCompile PrintFlags $(AT91BOOTSTRAP) ChkFileSize
+all: CheckCrossCompile PrintFlags $(AT91BOOTSTRAP) ChkFileSize ${AT91BOOTSTRAP}.pmecc
 
 CheckCrossCompile:
 	@( if [ "$(HOSTARCH)" != "arm" ]; then \
@@ -285,16 +326,11 @@ PrintFlags:
 $(AT91BOOTSTRAP): $(OBJS)
 	$(if $(wildcard $(BINDIR)),,mkdir -p $(BINDIR))
 	@echo "  LD        "$(BOOT_NAME).elf
-	@$(LD) $(LDFLAGS) -n -o $(BINDIR)/$(BOOT_NAME).elf $(OBJS)
-	@$(OBJCOPY) --strip-all $(BINDIR)/$(BOOT_NAME).elf -O binary $@_nohead.bin
-ifneq ($(PMECC_HEADER),)
-	@echo "Adding PMECC header"
-	@cat $(PMECC_HEADER) > $@
-	@cat $@_nohead.bin >> $@
-else
-	@mv $@_nohead.bin  $@
-endif
-	@ln -sf $(BOOT_NAME).bin ${BINDIR}/${SYMLINK}
+	$(Q)$(LD) $(LDFLAGS) -n -o $(BINDIR)/$(BOOT_NAME).elf $(OBJS)
+#	@$(OBJCOPY) --strip-debug --strip-unneeded $(REMOVE_SECTIONS) $(BINDIR)/$(BOOT_NAME).elf -O binary $(BINDIR)/$(BOOT_NAME).bin
+	@$(OBJCOPY) --strip-all $(REMOVE_SECTIONS) $(BINDIR)/$(BOOT_NAME).elf -O binary $@
+	@ln -rsf ${BINDIR}/$(BOOT_NAME).bin ${BINDIR}/${SYMLINK}
+	@ln -rsf ${BINDIR}/$(BOOT_NAME).bin ${BINDIR}/${SYMLINK_BOOT}
 
 %.o : %.c .config
 	@echo "  CC        "$<
@@ -303,6 +339,15 @@ endif
 %.o : %.S .config
 	@echo "  AS        "$<
 	@$(AS) $(ASFLAGS)  -c -o $@  $<
+
+$(AT91BOOTSTRAP).pmecc: $(AT91BOOTSTRAP)
+ifeq ($(CONFIG_NANDFLASH), y)
+ifeq ($(CONFIG_USE_PMECC), y)
+	$(Q)./scripts/addpmecchead.py $(AT91BOOTSTRAP) $(AT91BOOTSTRAP).pmecc $(BOARDNAME)
+	@ln -rsf $(AT91BOOTSTRAP).pmecc ${BINDIR}/${SYMLINK}
+	@ln -rsf $(AT91BOOTSTRAP).pmecc ${BINDIR}/${SYMLINK_BOOT}
+endif
+endif
 
 PHONY+= bootstrap
 
@@ -313,6 +358,7 @@ ChkFileSize: $(AT91BOOTSTRAP)
 	  if [ $$? -ne 0 ] ; then \
 		rm $(BINDIR)/$(BOOT_NAME).bin ;\
 		rm ${BINDIR}/${SYMLINK}; \
+		rm ${BINDIR}/${SYMLINK_BOOT}; \
 		exit 3; \
 	  fi ; \
 	  echo "Size of $(BOOT_NAME).bin is $$fsize bytes"; \
@@ -320,6 +366,7 @@ ChkFileSize: $(AT91BOOTSTRAP)
 		echo "[Failed***] It's too big to fit into SRAM area. the support maxium size is $(BOOTSTRAP_MAXSIZE)"; \
 		rm $(BINDIR)/$(BOOT_NAME).bin ;\
 		rm ${BINDIR}/${SYMLINK}; \
+		rm ${BINDIR}/${SYMLINK_BOOT}; \
 		exit 2;\
 	  else \
 	  	echo "[Succeeded] It's OK to fit into SRAM area"; \
@@ -331,7 +378,7 @@ endif  # HAVE_DOT_CONFIG
 PHONY+= rebuild
 
 %_defconfig:
-	@(conf_file=`find ./board -name $@`; \
+	@(conf_file=`find ./ -name $@`; \
 	if [ "$$conf_file"x != "x" ]; then \
 		cp $$conf_file .config; \
 	else \
@@ -341,7 +388,7 @@ PHONY+= rebuild
 	@$(MAKE) defconfig
 
 update:
-	cp .config board/$(BOARDNAME)/$(BOARDNAME)_defconfig
+	cp .config $(BOARD_LOCATE)/$(BOARDNAME)_defconfig
 
 no-cross-compiler:
 	@echo
@@ -374,7 +421,7 @@ distrib: mrproper
 
 config-clean:
 	@echo "  CLEAN        "configuration files!
-	$(Q)make -C config distclean
+	$(Q)$(MAKE) -C config distclean
 	$(Q)rm -fr config/at91bootstrap-config
 	$(Q)rm -f  config/.depend
 

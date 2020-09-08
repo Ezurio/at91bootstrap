@@ -34,10 +34,6 @@ config	ALLOW_SDCARD
 	bool
 	default n
 
-config	ALLOW_HSMCI
-	bool
-	default n
-	
 config	ALLOW_PSRAM
 	bool
 	default n
@@ -52,6 +48,9 @@ choice
 	prompt "RAM size"
 	depends on CONFIG_SDRAM || CONFIG_SDDRC || CONFIG_DDRC
 	default CONFIG_RAM_64MB
+
+config	CONFIG_RAM_8MB
+	bool "8 MB"
 
 config	CONFIG_RAM_32MB
 	bool "32 MB"
@@ -81,12 +80,43 @@ config CONFIG_LPDDR1
 config CONFIG_LPDDR2
 	bool "Low-power DDR2-SDRAM"
 
+config CONFIG_LPDDR3
+	bool "Low-power DDR3-SDRAM"
+
 config CONFIG_DDR2
 	bool "DDR2-SDRAM"
 
+config CONFIG_DDR3
+	bool "DDR3-SDRAM"
+
 endchoice
 
+config CONFIG_MEM_BANK
+	string "Extern Memory Bank Base Address"
+	default "0x70000000" if AT91SAM9G45 && !BOARD_HAS_2_BANKS
+	default "0x20000000"
+
+config CONFIG_MEM_BANK2
+	depends on BOARD_HAS_2_BANKS
+	string "Extern Memory Bank2 Base Address"
+	default "0x70000000" if AT91SAM9G45 && BOARD_HAS_2_BANKS
+	default "0"
+
+config CONFIG_MEM_SIZE
+	string "Extern Memory Bank Size"
+	default "0x800000" if CONFIG_RAM_8MB
+	default "0x2000000" if CONFIG_RAM_32MB
+	default "0x4000000" if CONFIG_RAM_64MB
+	default "0x8000000" if CONFIG_RAM_128MB
+	default "0x10000000" if CONFIG_RAM_256MB
+	default "0x20000000" if CONFIG_RAM_512MB
+
 endmenu
+
+config CONFIG_SAMA5D2_LPDDR2
+	bool
+	default y if CONFIG_LPDDR2 && SAMA5D2
+	default n
 
 config	CONFIG_SDRAM_16BIT
 	bool "Use 16 bit SDRAM"
@@ -136,25 +166,65 @@ config CONFIG_MEMORY
 menu  "SD Card Configuration"
 	depends on CONFIG_SDCARD
 
-config CONFIG_SDCARD_HS
+config CONFIG_AT91_MCI
 	bool
-	default y if AT91SAM9G45
-	default y if AT91SAM9X5
-	default y if AT91SAM9N12
-	default y if SAMA5D3X || SAMA5D4
+	depends on CPU_HAS_HSMCI0 || CPU_HAS_HSMCI1 || CPU_HAS_HSMCI2 || CPU_HAS_MCI0 || CPU_HAS_MCI1
+	default y
+
+choice
+	prompt "MultiMedia Card Interface Select"
+	depends on CONFIG_AT91_MCI
+	default CONFIG_AT91_MCI0
+	help
+	  This interface allow you select which MultiMedia Card Interface is used for the SD Card.
+
+config CONFIG_AT91_MCI0
+	bool "On Atmel MCI 0"
+	depends on CPU_HAS_HSMCI0 || CPU_HAS_MCI0
+
+config CONFIG_AT91_MCI1
+	bool "On Atmel MCI 1"
+	depends on CPU_HAS_HSMCI1 || CPU_HAS_MCI1
+
+config CONFIG_AT91_MCI2
+	bool "On Atmel MCI 2"
+	depends on CPU_HAS_HSMCI2
+
+endchoice
+
+config CONFIG_SDHC
+	bool
+	depends on CPU_HAS_SDHC0 || CPU_HAS_SDHC1
+	default y
+
+choice
+	prompt "SD Host Controller Select"
+	depends on CONFIG_SDHC
+	default CONFIG_SDHC0
+	help
+	  This interface allow you select which SD Host Controller for the SD Card.
+
+config CONFIG_SDHC0
+	bool "On SDHC0"
+	depends on CPU_HAS_SDHC0
+
+config CONFIG_SDHC1
+	bool "On SDHC1"
+	depends on CPU_HAS_SDHC1
+
+endchoice
+
+config CONFIG_SDHC_NODMA
+	bool "Disable DMA mode"
+	depends on CONFIG_SDHC
 	default n
+	help
+	  Disable SDHC DMA mode, use PIO mode only
 
 config CONFIG_FATFS
 	bool
 	depends on CONFIG_SDCARD
 	default y if CONFIG_SDCARD
-
-config CONFIG_LONG_FILENAME
-	bool "Support Long FileName(LFN)"
-	depends on CONFIG_FATFS
-	default y if !AT91SAM9G10
-	help
-	  Configure support to FatFS Long FileName(LFN)
 
 endmenu
 
@@ -171,7 +241,7 @@ config CONFIG_BOOTSTRAP_MAXSIZE
 	default "4096" if AT91SAM9260
 	default "8192" if AT91SAM9G10 && CONFIG_SDCARD
 	default "12288" if AT91SAM9G10 && !CONFIG_SDCARD
-	default "65536"	if SAMA5D3X || SAMA5D4
+	default "65536"	if SAMA5D3X || SAMA5D4 || SAMA5D2 || SAM9X60
 	default "23000"
 
 endmenu

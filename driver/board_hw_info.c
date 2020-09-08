@@ -35,17 +35,16 @@
 
 /* Board Type */
 #define BOARD_TYPE_CPU		1
-#define BOARD_TYPE_CPU_MASK	1
 #define BOARD_TYPE_EK		2
-#define BOARD_TYPE_EK_MASK	2
 #define BOARD_TYPE_DM		3
-#define BOARD_TYPE_DM_MASK	4
-#define BOARD_TYPE_MASK		7
 
 /* One Wire informaion */
 #define BOARD_NAME_LEN		12
 #define VENDOR_NAME_LEN		10
 #define VENDOR_COUNTRY_LEN	2
+
+#define VENDOR_NAME_ALT_LEN	6
+#define VENDOR_COUNTRY_ALT_LEN	3
 
 typedef struct hw_info_map {
 	unsigned char total_bytes;
@@ -60,6 +59,21 @@ typedef struct hw_info_map {
 	unsigned char revision_mapping;
 } __attribute__((packed)) hw_info_map_t;
 
+typedef struct hw_info_alt_map {
+	unsigned char size_byte;
+	unsigned char vendor_name[VENDOR_NAME_ALT_LEN];
+	unsigned char vendor_country[VENDOR_COUNTRY_ALT_LEN];
+	unsigned char year;
+	unsigned char week;
+	unsigned char revision_code;
+	unsigned char revision_id;
+	unsigned char bom_revision;
+	unsigned char crc_serial;
+	unsigned char ext_config_addr[2];
+	unsigned char board_name[BOARD_NAME_LEN];
+	unsigned char revision_mapping;
+} __attribute__((packed)) hw_info_alt_map_t;
+
 typedef struct board_hw_info {
 	char *board_name;
 	char *vendor_name;
@@ -69,6 +83,8 @@ typedef struct board_hw_info {
 	unsigned char revision_id;
 	unsigned char bom_revision;
 	unsigned char vendor_id;
+	unsigned char year;
+	unsigned char week;
 } board_info_t;
 
 static unsigned int sn;
@@ -101,6 +117,9 @@ static struct {
 	{"SAMA5D36-CP",	BOARD_TYPE_CPU,	BOARD_ID_SAMA5D36_CP},
 	{"SAMA5D44-MB",	BOARD_TYPE_EK,	BOARD_ID_SAMA5D4_MB},
 	{"SAMA5D4-XULT",BOARD_TYPE_EK,	BOARD_ID_SAMA5D4_MB},
+	{"SAMA5D2-XULT",BOARD_TYPE_EK,	BOARD_ID_SAMA5D2_XULT},
+	{"SAMA5D2-ICP", BOARD_TYPE_EK,	BOARD_ID_SAMA5D2_ICP},
+	{"SAM9X60-EK",	BOARD_TYPE_EK,	BOARD_ID_SAM9X60_EK},
 	{0,		0,		0},
 };
 
@@ -116,6 +135,9 @@ static struct {
 	{"PDA",		VENDOR_PDA},
 	{"ATMEL-RFO",	VENDOR_ATMEL_RFO},
 	{"ATMEL RFO",	VENDOR_ATMEL_RFO},
+	{"ATMEL-RF0",	VENDOR_ATMEL_RFO},
+	{"MCHIP RFO",	VENDOR_MCHIP_RFO},
+	{"MCHIP RDC",	VENDOR_MCHIP_RDC},
 	{0,		0},
 };
 
@@ -159,9 +181,8 @@ static unsigned char normalize_bom_revision(const unsigned char c)
 	return normalize_rev_id(c);
 }
 
-static int get_board_hw_info(unsigned char *buff,
-				unsigned char board_sn,
-				board_info_t *bd_info)
+static int parse_board_hw_info(unsigned char *buff,
+			       board_info_t *bd_info)
 {
 	char board_name[BOARD_NAME_LEN + 1];
 	char vendor_name[VENDOR_NAME_LEN + 1];
@@ -170,7 +191,8 @@ static int get_board_hw_info(unsigned char *buff,
 	hw_info_map_t *p = (hw_info_map_t *)buff;
 
 	if (p->total_bytes != HW_INFO_TOTAL_SIZE) {
-		dbg_info("HW Info: The total size isn't correct\n");
+		dbg_loud("HW Info: The total size: %x isn't correct\n",
+			 p->total_bytes);
 		return -1;
 	}
 
@@ -209,22 +231,6 @@ static int get_board_hw_info(unsigned char *buff,
 	bd_info->vendor_id = vendor_list[i].vendor_id;
 	bd_info->vendor_name = vendor_list[i].vendor_name;
 
-	dbg_info("  #%d", board_sn);
-	if (p->revision_mapping == 'B') {
-		dbg_info("  %s [%c%c%c]      %s\n",
-		bd_info->board_name,
-		bd_info->revision_code,
-		bd_info->revision_id,
-		bd_info->bom_revision,
-		bd_info->vendor_name);
-	} else {
-		dbg_info("  %s [%c%c]      %s\n",
-		bd_info->board_name,
-		bd_info->revision_code,
-		bd_info->revision_id,
-		bd_info->vendor_name);
-	}
-
 	return 0;
 
 fail_to_search_board:
@@ -244,7 +250,100 @@ fail_to_search_vendor:
 	dbg_info("Failed to parse the vendor name: %s\n", vendor_name);
 
 	return -1;
+}
 
+static int parse_alt_board_hw_info(unsigned char *buff,
+				   board_info_t *bd_info)
+{
+	unsigned int i;
+	unsigned char *board, *vendor;
+	hw_info_alt_map_t *p = (hw_info_alt_map_t *)buff;
+
+	if (p->size_byte != 0x41) {
+		dbg_info("%s: Size of byte is incorrect\n", __func__);
+		return -1;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(board_list); i++) {
+		if (!strncmp((const char *)p->board_name,
+			     (const char *)board_list[i].board_name,
+			     strlen(board_list[i].board_name)))
+			break;
+	}
+
+	if (i == ARRAY_SIZE(board_list))
+		goto failed;
+
+	bd_info->board_type = board_list[i].board_type;
+	bd_info->board_id = board_list[i].board_id;
+	bd_info->board_name = board_list[i].board_name;
+
+	for (i = 0; i < ARRAY_SIZE(vendor_list); i++) {
+		if (!strncmp((const char *)p->vendor_name,
+			     (const char *)vendor_list[i].vendor_name,
+			     strlen(vendor_list[i].vendor_name)))
+			break;
+	}
+
+	if (i == ARRAY_SIZE(vendor_list))
+		goto failed;
+
+	bd_info->vendor_id = vendor_list[i].vendor_id;
+	bd_info->vendor_name = vendor_list[i].vendor_name;
+
+	bd_info->revision_code = normalize_rev_code(p->revision_code);
+	bd_info->revision_id = normalize_rev_id_map_b(p->revision_id);
+	bd_info->bom_revision = normalize_bom_revision(p->bom_revision);
+
+	bd_info->year = p->year;
+	bd_info->week = p->week;
+
+	return 0;
+
+failed:
+	board = p->board_name;
+	vendor = p->vendor_name;
+	board[BOARD_NAME_LEN] = 0;
+	vendor[VENDOR_NAME_ALT_LEN + VENDOR_COUNTRY_ALT_LEN] = 0;
+
+	dbg_info("%s: Failed to parse with board: %s, vendor: %s\n",
+		 __func__, board, vendor);
+
+	return -1;
+}
+static int get_board_hw_info(unsigned char *buff,
+			     unsigned char board_sn,
+			     board_info_t *bd_info)
+{
+	int ret;
+	unsigned char mapping_revision = buff[30];
+
+	if (mapping_revision == 'C')
+		ret = parse_alt_board_hw_info(buff, bd_info);
+	else
+		ret = parse_board_hw_info(buff, bd_info);
+
+	if (ret)
+		return ret;
+
+	dbg_info("  #%d", board_sn);
+	if ((mapping_revision == 'B') ||
+	    (mapping_revision == 'C')) {
+		dbg_info("  %s [%c%c%c]      %s\n",
+		bd_info->board_name,
+		bd_info->revision_code,
+		bd_info->revision_id,
+		bd_info->bom_revision,
+		bd_info->vendor_name);
+	} else {
+		dbg_info("  %s [%c%c]      %s\n",
+		bd_info->board_name,
+		bd_info->revision_code,
+		bd_info->revision_id,
+		bd_info->vendor_name);
+	}
+
+	return 0;
 }
 
 /*******************************************************************************
@@ -291,15 +390,13 @@ fail_to_search_vendor:
 #define EK_REV_ID_OFFSET	21
 
 static int construct_sn_rev(board_info_t *bd_info,
-				unsigned int *psn,
-				unsigned int *prev,
-				unsigned int *missing)
+			    unsigned int *psn,
+			    unsigned int *prev)
 {
 	int ret = 0;
 
 	switch (bd_info->board_type) {
 	case BOARD_TYPE_CPU:
-		*missing &= (BOARD_TYPE_MASK & ~BOARD_TYPE_CPU_MASK);
 		*psn |= (bd_info->board_id & SN_MASK);
 		*psn |= ((bd_info->vendor_id & VENDOR_MASK)
 							<< CM_VENDOR_OFFSET);
@@ -309,7 +406,6 @@ static int construct_sn_rev(board_info_t *bd_info,
 		break;
 
 	case BOARD_TYPE_DM:
-		*missing &= (BOARD_TYPE_MASK & ~BOARD_TYPE_DM_MASK);
 		*psn |= ((bd_info->board_id & SN_MASK) << DM_SN_OFFSET);
 		*psn |= ((bd_info->vendor_id & VENDOR_MASK)
 							<< DM_VENDOR_OFFSET);
@@ -320,7 +416,6 @@ static int construct_sn_rev(board_info_t *bd_info,
 		break;
 
 	case BOARD_TYPE_EK:
-		*missing &= (BOARD_TYPE_MASK & ~BOARD_TYPE_EK_MASK);
 		*psn |= ((bd_info->board_id & SN_MASK) << EK_SN_OFFSET);
 		*psn |= ((bd_info->vendor_id & VENDOR_MASK)
 							<< EK_VENDOR_OFFSET);
@@ -384,6 +479,17 @@ static unsigned int set_default_sn(void)
 	board_id_ek = BOARD_ID_SAMA5D4_MB;
 	vendor_cm = VENDOR_EMBEST;
 	vendor_dm = VENDOR_FLEX;
+#elif defined(CONFIG_SAMA5D2_XPLAINED)
+	board_id_ek = BOARD_ID_SAMA5D2_XULT;
+	vendor_ek = VENDOR_ATMEL_RFO;
+#elif defined(CONFIG_SAMA5D2_ICP)
+	board_id_ek = BOARD_ID_SAMA5D2_ICP;
+	vendor_ek = VENDOR_MCHIP_RFO;
+#elif defined(CONFIG_SAM9X60EK) || defined(CONFIG_SAM9X60_DDR2_SIP_EB) || defined(CONFIG_SAM9X60_SDR_SIP_EB)
+	/* sam9x60ek ; sam9x60 ddr2 sip eb and sam9x60 sdr sip eb
+	 */
+	board_id_ek = BOARD_ID_SAM9X60_EK;
+	vendor_ek = VENDOR_MCHIP_RDC;
 #else
 #error "OneWire: No defined board"
 #endif
@@ -443,6 +549,43 @@ static unsigned int set_default_rev(void)
 	rev_id_cm = '0';
 	rev_id_dm = '2';
 	rev_id_ek = '3';
+
+#elif defined(CONFIG_SAMA5D2_XPLAINED)
+	rev_cm = 'A';
+	rev_dm = 'A';
+	rev_ek = 'A';
+	rev_id_cm = '1';
+	rev_id_dm = '1';
+	rev_id_ek = '1';
+
+#elif defined(CONFIG_SAMA5D2_ICP)
+	rev_cm = 'A';
+	rev_dm = 'A';
+	rev_ek = 'A';
+	rev_id_cm = '1';
+	rev_id_dm = '1';
+	rev_id_ek = '1';
+#elif defined(CONFIG_SAM9X60EK)
+	rev_cm = 'A';
+	rev_dm = 'A';
+	rev_ek = 'A';
+	rev_id_cm = '0';
+	rev_id_dm = '0';
+	rev_id_ek = '0';
+#elif defined(CONFIG_SAM9X60_DDR2_SIP_EB)
+	rev_cm = 'A';
+	rev_dm = 'A';
+	rev_ek = 'A';
+	rev_id_cm = '0';
+	rev_id_dm = '0';
+	rev_id_ek = '0';
+#elif defined(CONFIG_SAM9X60_SDR_SIP_EB)
+	rev_cm = 'A';
+	rev_dm = 'A';
+	rev_ek = 'A';
+	rev_id_cm = '0';
+	rev_id_dm = '0';
+	rev_id_ek = '0';
 #else
 #error "OneWire: No defined board"
 #endif
@@ -496,17 +639,14 @@ unsigned int get_ek_sn(void)
 }
 
 #if defined(CONFIG_LOAD_ONE_WIRE)
-static unsigned int load_1wire_info(unsigned char *buff, unsigned int size,
-				unsigned int *psn, unsigned int *prev,
-				unsigned int *missing)
+static int load_1wire_info(unsigned char *buff, unsigned int size,
+			   unsigned int *psn, unsigned int *prev)
 {
 	board_info_t board_info;
 	board_info_t *bd_info = &board_info;
 	unsigned int count;
 	unsigned int parsing = 0;
-	int i, j;
-
-	unsigned char *tmp = buff;
+	int i;
 
 	memset(bd_info, 0, sizeof(*bd_info));
 
@@ -515,7 +655,7 @@ static unsigned int load_1wire_info(unsigned char *buff, unsigned int size,
 	count = enumerate_all_rom();
 	if (!count) {
 		dbg_info("WARNING: 1-Wire: No 1-Wire chip found\n");
-		return 0;
+		return -1;
 	}
 
 	dbg_info("1-Wire: BoardName | [Revid] | VendorName\n");
@@ -523,35 +663,34 @@ static unsigned int load_1wire_info(unsigned char *buff, unsigned int size,
 	for (i = 0; i < count; i++) {
 		if (ds24xx_read_memory(i, 0, 0, size, buff) < 0) {
 			dbg_info("WARNING: 1-Wire: Failed to read from 1-Wire chip!\n");
-			return 0;
+			return -1;
 		}
 
 		dbg_loud("board: #%d: ", i);
-		for (j = 0; j < size; j++)
-			dbg_loud("%d ", *tmp++);
-
-		dbg_loud("\n");
+#if (BOOTSTRAP_DEBUG_LEVEL >= DEBUG_LOUD)
+		dbg_hexdump(buff, size, DUMP_WIDTH_BIT_8);
+#endif
 
 		if (get_board_hw_info(buff, i, bd_info))
 			continue;
 
-		if (construct_sn_rev(bd_info, psn, prev, missing))
+		if (construct_sn_rev(bd_info, psn, prev))
 			continue;
 
 		parsing++;
 	}
 
 	if (!parsing)
-		return 0;
+		return -1;
 
-	return count;
+	return 0;
 }
 #endif /* #if defined(CONFIG_LOAD_ONE_WIRE) */
 
 #if defined(CONFIG_LOAD_EEPROM)
-static int load_eeprom_info(unsigned char *buff, unsigned int size, unsigned int boardsn,
-				unsigned int *psn, unsigned int *prev,
-				unsigned int *missing)
+static int load_eeprom_info(unsigned char *buff, unsigned int size,
+			    unsigned int boardsn, unsigned int *psn,
+			    unsigned int *prev)
 {
 	board_info_t board_info;
 	board_info_t *bd_info = &board_info;
@@ -568,8 +707,12 @@ static int load_eeprom_info(unsigned char *buff, unsigned int size, unsigned int
 	if (get_board_hw_info(buff, boardsn, bd_info))
 		return -1;
 
-	if (construct_sn_rev(bd_info, psn, prev, missing))
+	if (construct_sn_rev(bd_info, psn, prev))
 		return -1;
+
+	dbg_info("EEPROM: BoardDate | Year | Week\n");
+	dbg_info("EEPROM:             %u    %u\n",
+		 2000 + bd_info->year, bd_info->week);
 
 	return 0;
 }
@@ -578,54 +721,39 @@ static int load_eeprom_info(unsigned char *buff, unsigned int size, unsigned int
 void load_board_hw_info(void)
 {
 	unsigned int size = HW_INFO_TOTAL_SIZE;
-#if defined(CONFIG_SAMA5D4EK) || defined(CONFIG_SAMA5D4_XPLAINED)
-	unsigned int missing = BOARD_TYPE_EK_MASK;
-#else
-	unsigned int missing = BOARD_TYPE_MASK;
-#endif
-	unsigned int count = 0;
-	unsigned int failed = 0;
+	int ret;
 
 #if defined(CONFIG_LOAD_ONE_WIRE)
-	count = load_1wire_info(buffer, size, &sn, &rev, &missing);
-	if (!count)
-		failed = 1;
+	ret = load_1wire_info(buffer, size, &sn, &rev);
 #endif
 #if defined(CONFIG_LOAD_EEPROM)
-	failed = 0;
-	if (load_eeprom_info(buffer, size, count, &sn, &rev, &missing))
-		failed = 1;
+	ret = load_eeprom_info(buffer, size, 0, &sn, &rev);
 #endif
-	if (failed)
-		goto set_default;
+	if (ret) {
+#if defined(CONFIG_LOAD_ONE_WIRE)
+		dbg_info("\n1-Wire: ");
+#endif
+#if defined(CONFIG_LOAD_EEPROM)
+		dbg_info("\nEEPROM: ");
+#endif
+		dbg_info("Using default information\n");
 
-	if (missing & BOARD_TYPE_CPU_MASK)
-		dbg_info("1-Wire: Failed to read CM board information\n");
+		sn = set_default_sn();
+		rev = set_default_rev();
+	}
 
-	if (missing & BOARD_TYPE_DM_MASK)
-		dbg_info("1-Wire: Failed to read DM board information\n");
-
-	if (missing & BOARD_TYPE_EK_MASK)
-		dbg_info("1-Wire: Failed to read EK board information\n");
-
-	goto save_info;
-
-set_default:
-	dbg_info("\n1-Wire: Using default information\n");
-
-	sn = set_default_sn();
-	rev = set_default_rev();
-
-save_info:
 #ifdef AT91C_BASE_GPBR
-	/* save to GPBR #2 and #3 */
-	dbg_info("\n1-Wire: SYS_GPBR2: %d, SYS_GPBR3: %d\n\n", sn, rev);
-
 	writel(sn, AT91C_BASE_GPBR + 4 * 2);
 	writel(rev, AT91C_BASE_GPBR + 4 * 3);
-#else
-	dbg_info("\n1-Wire: Board sn: %d, revsion: %d\n\n", sn, rev);
 #endif
+
+#if defined(CONFIG_LOAD_ONE_WIRE)
+	dbg_info("\n1-Wire: ");
+#endif
+#if defined(CONFIG_LOAD_EEPROM)
+	dbg_info("\nEEPROM: ");
+#endif
+	dbg_info("Board sn: %x revision: %x\n\n", sn, rev);
 
 	return;
 }
