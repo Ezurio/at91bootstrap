@@ -1,21 +1,16 @@
-config	ALLOW_PIO3
+config CPU_HAS_PIO3
 	bool
 	default n
 
-config	CONFIG_HAS_PIO3
+config CPU_HAS_L2CC
 	bool
-	depends on ALLOW_PIO3
-	default y
+	default n
 
 config CPU_HAS_PMECC
 	bool
 	default n
 
 config CONFIG_HAS_HW_INFO
-	bool
-	default n
-
-config CONFIG_MMC_SUPPORT
 	bool
 	default n
 
@@ -71,4 +66,25 @@ config CPU_HAS_AES
 	bool
 	default n
 
+config CPU_HAS_PIO4
+	bool
+	default n
+
+config CONFIG_FLEXCOM
+	bool
+	default n
+
+config CPU_HAS_FLEXCOM
+	bool
+	default n
+
+config CPU_HAS_WDT2
+	bool
+	default n
+
+config CPU_HAS_QSPI_RICR_WICR
+	bool
+	default n
+
 source "driver/Config.in.memory"
+source "contrib/driver/Config.in.driver"

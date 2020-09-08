@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2012, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,5 +33,6 @@ extern int check_dt_blob_valid(void *blob);
 extern int fixup_chosen_node(void *blob, char *bootargs);
 extern int fixup_memory_node(void *blob,
 				unsigned int *mem_bank,
+				unsigned int *mem_bank2,
 				unsigned int *mem_size);
 #endif /* #ifndef __FDT_H__ */

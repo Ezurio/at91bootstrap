@@ -1,11 +1,11 @@
 ifeq ($(AT91SAM9260), y)
 CPPFLAGS += -DAT91SAM9260
-ASFLAGS += -DSAT91SAM9260
+ASFLAGS += -DAT91SAM9260
 endif
 
 ifeq ($(AT91SAM9261), y)
 CPPFLAGS += -DAT91SAM9261
-ASFLAGS += -DSAT91SAM9261
+ASFLAGS += -DAT91SAM9261
 endif
 
 ifeq ($(AT91SAM9263), y)
@@ -48,6 +48,11 @@ CPPFLAGS += -DAT91SAM9N12
 ASFLAGS += -DAT91SAM9N12
 endif
 
+ifeq ($(SAM9X60), y)
+CPPFLAGS += -DSAM9X60
+ASFLAGS += -DSAM9X60
+endif
+
 ifeq ($(SAMA5D3X), y)
 CPPFLAGS += -DSAMA5D3X
 ASFLAGS += -DSAMA5D3X
@@ -56,4 +61,19 @@ endif
 ifeq ($(SAMA5D4), y)
 CPPFLAGS += -DSAMA5D4
 ASFLAGS += -DSAMA5D4
+endif
+
+ifeq ($(SAMA5D2), y)
+CPPFLAGS += -DSAMA5D2
+ASFLAGS += -DSAMA5D2
+endif
+
+ifeq ($(CORE_ARM926EJS), y)
+CPPFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s -mfloat-abi=soft
+ASFLAGS += -mcpu=arm926ej-s -mtune=arm926ej-s -mfloat-abi=soft
+endif
+
+ifeq ($(CORE_CORTEX_A5), y)
+CPPFLAGS += -mcpu=cortex-a5 -mtune=cortex-a5
+ASFLAGS += -mcpu=cortex-a5 -mtune=cortex-a5
 endif

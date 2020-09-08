@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,20 +40,16 @@
 #define	MCK_100
 
 #define MASTER_CLOCK		(198656000/2)
-#define PLL_LOCK_TIMEOUT	1000000
 
 #define PLLA_SETTINGS		0x2060BF09
-#define PLLB_SETTINGS		0x10483F0E
 
 #endif /* #if defined(CONFIG_CPU_CLK_200MHZ) */
 
 #if defined(CONFIG_CPU_CLK_250MHZ)
 
 #define MASTER_CLOCK		(250000000/2)
-#define PLL_LOCK_TIMEOUT	1000000
 
 #define PLLA_SETTINGS		0x20D8BF10
-#define PLLB_SETTINGS		0x10483F0E
 
 #endif /* #if defined(CONFIG_CPU_CLK_250MHZ) */
 
@@ -62,10 +58,8 @@
 #define	MCK_133
 
 #define MASTER_CLOCK		(266000000/2)
-#define PLL_LOCK_TIMEOUT	1000000
 
 #define PLLA_SETTINGS		0x22DF3F33
-#define PLLB_SETTINGS		0x107C3F18
 
 #endif /* #if defined(CONFIG_CPU_CLK_266MHZ) */
 
@@ -75,12 +69,11 @@
 
 /* DataFlash Settings */
 #define CONFIG_SYS_SPI_CLOCK	AT91C_SPI_CLK
-#define CONFIG_SYS_SPI_BUS	0
 #define CONFIG_SYS_SPI_MODE	SPI_MODE0
 
-#if CONFIG_SYS_SPI_BUS == 0
+#if defined(CONFIG_SPI_BUS0)
 #define CONFIG_SYS_BASE_SPI	AT91C_BASE_SPI0
-#elif CONFIG_SYS_SPI_BUS == 1
+#elif defined(CONFIG_SPI_BUS1)
 #define CONFIG_SYS_BASE_SPI	AT91C_BASE_SPI1
 #endif
 

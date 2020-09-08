@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -29,6 +29,7 @@
 #include "board.h"
 #include "debug.h"
 #include "macb.h"
+#include "pmc.h"
 
 /*
  * EMAC & GMAC Register
@@ -256,7 +257,7 @@ static int macb_is_gem(struct mii_bus *bus)
 static unsigned int gem_mdc_clk_div(void)
 {
 	unsigned int clk_div;
-	unsigned int mck = MASTER_CLOCK;
+	unsigned int mck = at91_get_ahb_clock();
 
 	if (mck < 20000000)
 		clk_div = GMAC_NCFGR_CLK_MCK_8;
@@ -277,7 +278,7 @@ static unsigned int gem_mdc_clk_div(void)
 static unsigned int macb_mdc_clk_div(void)
 {
 	unsigned int clk_div;
-	unsigned int mck = MASTER_CLOCK;
+	unsigned int mck = at91_get_ahb_clock();
 
 	if (mck < 20000000)
 		clk_div = EMAC_NCFGR_CLK_MCK_8;
@@ -380,7 +381,7 @@ static int phy_power_down_mode(struct mii_bus *bus)
 		goto error;
 	}
 
-	dbg_info("PHY: %s: Enter power down mode\n", bus->name);
+	dbg_loud("PHY: %s: Enter power down mode\n", bus->name);
 
 error:
 	macb_enable_managementport(bus, 0);

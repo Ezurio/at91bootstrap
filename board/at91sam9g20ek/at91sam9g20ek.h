@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2008, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,10 +36,8 @@
  * PLL initialization is done later in the hw_init() function
  */
 #define MASTER_CLOCK		132096000
-#define PLL_LOCK_TIMEOUT	1000000
 
 #define PLLA_SETTINGS		0x202A3F01
-#define PLLB_SETTINGS		0x10193F05
 
 /* Switch MCK on PLLA output PCK = PLLA/2 = 3 * MCK */
 #define MCKR_SETTINGS		0x1300
@@ -49,12 +47,11 @@
 * DataFlash Settings
 */
 #define CONFIG_SYS_SPI_CLOCK	AT91C_SPI_CLK
-#define CONFIG_SYS_SPI_BUS	0
 #define CONFIG_SYS_SPI_MODE	SPI_MODE0
 
-#if CONFIG_SYS_SPI_BUS == 0
+#if defined(CONFIG_SPI_BUS0)
 #define CONFIG_SYS_BASE_SPI	AT91C_BASE_SPI0
-#elif CONFIG_SYS_SPI_BUS == 1
+#elif defined(CONFIG_SPI_BUS1)
 #define CONFIG_SYS_BASE_SPI	AT91C_BASE_SPI1
 #endif
 

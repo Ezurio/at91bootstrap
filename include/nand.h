@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,7 @@ struct nand_chip {
 	unsigned short	oobsize;
 	unsigned char	buswidth;
 	unsigned char	eccbits;
+	unsigned int	eccwordsize;
 };
 
 struct nand_info {

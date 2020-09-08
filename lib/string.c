@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@ void *memcpy(void *dst, const void *src, int cnt)
 	while (cnt--)
 		*d++ = *s++;
 
-	return d;
+	return dst;
 }
 
 void *memset(void *dst, int val, int cnt)
@@ -46,7 +46,7 @@ void *memset(void *dst, int val, int cnt)
 	while (cnt--)
 		*d++ = (char)val;
 
-	return d;
+	return dst;
 }
 
 int memcmp(const void *dst, const void *src, unsigned int cnt)
@@ -98,7 +98,7 @@ int strcmp(const char *p1, const char *p2)
 		c1 = *p1++;
 		c2 = *p2++;
 		if (c1 != c2)
-			return c1 << c2 ? -1 : 1;
+			return c1 < c2 ? -1 : 1;
 		if (!c1)
 			break;
 	}
@@ -115,7 +115,7 @@ int strncmp(const char *p1, const char *p2, unsigned int cnt)
 		c2 = *p2++;
 
 		if (c1 != c2)
-			return c1 << c2 ? -1 : 1;
+			return c1 < c2 ? -1 : 1;
 
 		if (!c1)
 			break;
@@ -131,6 +131,30 @@ char *strchr(const char *s, int c)
 			return NULL;
 
 	return (char *)s;
+}
+
+/* NOTE: This is the simple-minded O(len(s1) * len(s2)) worst-case approach. */
+
+char *strstr(const char *s1, const char *s2)
+{
+	register const char *s = s1;
+	register const char *p = s2;
+
+	do {
+		if (!*p) {
+			return (char *) s1;;
+		}
+		if (*p == *s) {
+			++p;
+			++s;
+		} else {
+			p = s2;
+			if (!*s) {
+				return NULL;
+			}
+			s = ++s1;
+		}
+	} while (1);
 }
 
 void *memchr(void *src, int val, unsigned int cnt)

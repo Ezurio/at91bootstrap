@@ -9,7 +9,7 @@
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -26,6 +26,7 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "hardware.h"
+#include "arch/at91_sfr.h"
 #include "arch/lp310_l2cc.h"
 
 static inline void write_l2cc(unsigned int offset, const unsigned int value)
@@ -38,9 +39,20 @@ static inline unsigned int read_l2cc(unsigned int offset)
 	return readl(offset + AT91C_BASE_L2CC);
 }
 
-void l2cache_init(void)
+#if defined(SAMA5D2)
+static void l2cache_configure_ram(void)
+{
+	writel(0x1, SFR_L2CC_HRAMC + AT91C_BASE_SFR);
+}
+#else
+static void l2cache_configure_ram(void) {}
+#endif
+
+void l2cache_prepare(void)
 {
 	unsigned int cfg;
+
+	l2cache_configure_ram();
 
 	/* disable cache if it hasn't been done yet */
 	write_l2cc(L2CC_CR, 0x00);
@@ -89,9 +101,6 @@ void l2cache_init(void)
 	write_l2cc(L2CC_IMR, 0);
 	write_l2cc(L2CC_ICR, 0x01ff);
 
-	/* enable cache, now! */
-	write_l2cc(L2CC_CR, 1);
-
 /*
 	1.  Write to the Auxiliary, Tag RAM Latency, Data RAM Latency,
 		Prefetch, and Power Control registers using a read-modify-write
@@ -109,4 +118,10 @@ void l2cache_init(void)
 	5. Write to the Interrupt Mask Register if you want to enable interrupts.
 	6. Write to Control Register 1 with the LSB set to 1 to enable the cache.
 */
+}
+
+void l2cache_enable(void)
+{
+	/* enable cache, now! */
+	write_l2cc(L2CC_CR, 1);
 }

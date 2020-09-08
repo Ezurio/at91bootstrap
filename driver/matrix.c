@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2013, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,7 @@
  */
 #include "common.h"
 #include "hardware.h"
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "pmc.h"
 #include "arch/tz_matrix.h"
 #include "debug.h"
@@ -47,6 +47,7 @@ struct peri_security {
 };
 
 static const struct peri_security peri_security_array[] = {
+#if defined(SAMA5D4)
 	/* SAIC */
 	{
 		.peri_id = AT91C_ID_FIQ,
@@ -455,6 +456,7 @@ static const struct peri_security peri_security_array[] = {
 		.matrix = MATRIX_H64MX,
 		.security_type = SECURITY_TYPE_AS,
 	},
+#endif	/* #if defined(SAMA5D4) */
 };
 
 
@@ -470,13 +472,13 @@ static inline unsigned int matrix_read(int base, unsigned int offset)
 	return readl(offset + base);
 }
 
-void matrix_write_enable(unsigned int matrix_base)
+void matrix_write_protect_enable(unsigned int matrix_base)
 {
 	matrix_write(matrix_base, MATRIX_WPMR,
 		(MATRIX_WPMR_WPKEY_PASSWD | MATRIX_WPMR_WPEN_ENABLE));
 }
 
-void matrix_write_disable(unsigned int matrix_base)
+void matrix_write_protect_disable(unsigned int matrix_base)
 {
 	matrix_write(matrix_base, MATRIX_WPMR, MATRIX_WPMR_WPKEY_PASSWD);
 }
@@ -500,7 +502,7 @@ void matrix_read_slave_security(void)
 	dbg_very_loud("\n\nMATRIX64:\n");
 	matrix_base = AT91C_BASE_MATRIX64;
 	for (slave = 0; slave < 13; slave++) {
-		dbg_very_loud("MATRIX_SRTSR%d: %d, MATRIX_SASSR%d: %d, MATRIX_SSR%d: %d\n",
+		dbg_very_loud("MATRIX_SRTSR%d: %x, MATRIX_SASSR%d: %x, MATRIX_SSR%d: %x\n",
 			slave, matrix_read(matrix_base, MATRIX_SRTSR(slave)),
 			slave, matrix_read(matrix_base, MATRIX_SASSR(slave)),
 			slave, matrix_read(matrix_base, MATRIX_SSR(slave)));
@@ -509,7 +511,7 @@ void matrix_read_slave_security(void)
 	dbg_very_loud("\n\nMATRIX32:\n");
 	matrix_base = AT91C_BASE_MATRIX32;
 	for (slave = 0; slave < 7; slave++) {
-		dbg_very_loud("MATRIX_SRTSR%d: %d, MATRIX_SASSR%d: %d, MATRIX_SSR%d: %d\n",
+		dbg_very_loud("MATRIX_SRTSR%d: %x, MATRIX_SASSR%d: %x, MATRIX_SSR%d: %x\n",
 			slave, matrix_read(matrix_base, MATRIX_SRTSR(slave)),
 			slave, matrix_read(matrix_base, MATRIX_SASSR(slave)),
 			slave, matrix_read(matrix_base, MATRIX_SSR(slave)));
@@ -523,14 +525,14 @@ void matrix_read_periperal_security(void)
 	unsigned int matrix_base = AT91C_BASE_MATRIX32;
 	dbg_very_loud("\n\nMATRIX32\n");
 	for (i = 0; i < 3; i++) {
-		dbg_very_loud("MATRIX_SPSELR(%d): %d\n",
+		dbg_very_loud("MATRIX_SPSELR(%d): %x\n",
 				i, matrix_read(matrix_base, MATRIX_SPSELR(i)));
 	}
 
 	matrix_base = AT91C_BASE_MATRIX64;
 	dbg_very_loud("\n\n_MATRIX64\n");
 	for (i = 0; i < 3; i++) {
-		dbg_very_loud("MATRIX_SPSELR(%d): %d\n",
+		dbg_very_loud("MATRIX_SPSELR(%d): %x\n",
 				i, matrix_read(matrix_base, MATRIX_SPSELR(i)));
 	}
 }
@@ -608,6 +610,7 @@ int matrix_configure_peri_security(unsigned int *peri_id_array,
 	return 0;
 }
 
+#if defined(SAMA5D4)
 /*
  * is_peripheral_secure - tell if the peripheral is in secure mode
  * @periph_id: the peripheral id that is checked
@@ -690,3 +693,4 @@ int is_switching_clock_forbiden(unsigned int periph_id, unsigned int is_on, unsi
 		return 0;
 	}
 }
+#endif /* #if defined(SAMA5D4) */

@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2013, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -60,7 +60,7 @@ void switch_normal_world(void)
 {
 	monitor_init();
 
-	dbg_info("Enter Normal World, Run at %d\n", NWD_BOOT_ADDR);
+	dbg_info("Enter Normal World, Run at %x\n", NWD_BOOT_ADDR);
 
 	enter_normal_world();
 }

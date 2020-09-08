@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2012, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,22 +33,17 @@
 #include "ddramc.h"
 #include "spi.h"
 #include "gpio.h"
-#include "slowclk.h"
 #include "timer.h"
 #include "watchdog.h"
 #include "string.h"
 #include "board_hw_info.h"
 
-#include "arch/at91_pmc.h"
+#include "arch/at91_pmc/pmc.h"
 #include "arch/at91_rstc.h"
 #include "arch/sama5_smc.h"
 #include "arch/at91_pio.h"
 #include "arch/at91_ddrsdrc.h"
 #include "sama5d3xek.h"
-
-#ifdef CONFIG_USER_HW_INIT
-extern void hw_init_hook(void);
-#endif
 
 static void at91_dbgu_hw_init(void)
 {
@@ -82,8 +77,8 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 	ddramc_config->cr = (AT91C_DDRC2_NC_DDR10_SDR9
 				| AT91C_DDRC2_NR_14
 				| AT91C_DDRC2_CAS_3
-				| AT91C_DDRC2_DLL_RESET_DISABLED /* DLL not reset */
-				| AT91C_DDRC2_DIS_DLL_DISABLED   /* DLL not disabled */
+				| AT91C_DDRC2_DISABLE_RESET_DLL
+				| AT91C_DDRC2_ENABLE_DLL
 				| AT91C_DDRC2_ENRDM_ENABLE       /* Phase error correction is enabled */
 				| AT91C_DDRC2_NB_BANKS_8
 				| AT91C_DDRC2_NDQS_DISABLED      /* NDQS disabled (check on schematics) */
@@ -236,7 +231,8 @@ static void lpddr2_reg_config(struct ddramc_register *ddramc_config)
 	 * (32ms / 8192) * 132MHz = 514 i.e. 0x202
 	 */
 	ddramc_config->rtr = 0x202;
-	ddramc_config->tim_calr = 12;
+	/* 90n short calibration: ZQCS */
+	ddramc_config->tim_calr = AT91C_DDRC2_ZQCS(12);
 
 	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(6)
 			| AT91C_DDRC2_TRCD_(2)
@@ -351,7 +347,7 @@ static void at91_special_pio_output_low(void)
 	base = AT91C_BASE_PIOB;
 	value = GMAC_PINS;
 
-	writel((1 << AT91C_ID_PIOB), (PMC_PCER + AT91C_BASE_PMC));
+	pmc_enable_periph_clock(AT91C_ID_PIOB);
 
 	writel(value, base + PIO_REG_PPUDR);	/* PIO_PPUDR */
 	writel(value, base + PIO_REG_PPDDR);	/* PIO_PPDDR */
@@ -362,7 +358,7 @@ static void at91_special_pio_output_low(void)
 	base = AT91C_BASE_PIOC;
 	value = EMAC_PINS;
 
-	writel((1 << AT91C_ID_PIOC), (PMC_PCER + AT91C_BASE_PMC));
+	pmc_enable_periph_clock(AT91C_ID_PIOC);
 
 	writel(value, base + PIO_REG_PPUDR);	/* PIO_PPUDR */
 	writel(value, base + PIO_REG_PPDDR);	/* PIO_PPDDR */
@@ -396,26 +392,22 @@ void hw_init(void)
 	 */
 
 	/* Configure PLLA = MOSC * (PLL_MULA + 1) / PLL_DIVA */
-	pmc_cfg_plla(PLLA_SETTINGS, PLL_LOCK_TIMEOUT);
+	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Initialize PLLA charge pump */
 	pmc_init_pll(AT91C_PMC_IPLLA_3);
 
 	/* Switch PCK/MCK on Main clock output */
-	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
 
 	/* Switch PCK/MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA, PLL_LOCK_TIMEOUT);
+	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
 
 	/* Set GMAC & EMAC pins to output low */
 	at91_special_pio_output_low();
 
 	/* Init timer */
 	timer_init();
-
-#ifdef CONFIG_SCLK
-	slowclk_enable_osc32();
-#endif
 
 	/* initialize the dbgu */
 	initialize_dbgu();
@@ -429,9 +421,6 @@ void hw_init(void)
 	/* load one wire information */
 	one_wire_hw_init();
 
-#ifdef CONFIG_USER_HW_INIT
-	hw_init_hook();
-#endif
 	HDMI_Qt1070_workaround();
 
 #if defined(CONFIG_NANDFLASH_RECOVERY) || defined(CONFIG_DATAFLASH_RECOVERY)
@@ -440,6 +429,20 @@ void hw_init(void)
 #endif
 }
 #endif /* #ifdef CONFIG_HW_INIT */
+
+char *board_override_cmd_line(void)
+{
+	char *cmdline = NULL;
+
+#if defined(CONFIG_LOAD_ANDROID)
+	/* Setup Android command-line */
+	if (get_dm_sn() == BOARD_ID_PDA_DM)
+		cmdline = CMDLINE " androidboot.hardware=sama5d3x-pda";
+	else
+		cmdline = CMDLINE " androidboot.hardware=sama5d3x-ek";
+#endif
+	return cmdline;
+}
 
 #ifdef CONFIG_DATAFLASH
 void at91_spi0_hw_init(void)
@@ -463,7 +466,8 @@ void at91_spi0_hw_init(void)
 #endif /* #ifdef CONFIG_DATAFLASH */
 
 #ifdef CONFIG_SDCARD
-static void sdcard_set_of_name_board(char *of_name)
+#ifdef CONFIG_OF_LIBFDT
+void at91_board_set_dtb_name(char *of_name)
 {
 	/* CPU TYPE*/
 	switch (get_cm_sn()) {
@@ -493,10 +497,13 @@ static void sdcard_set_of_name_board(char *of_name)
 	}
 
 	if (get_dm_sn() == BOARD_ID_PDA_DM)
-		strcat(of_name, "_pda");
+		strcat(of_name, "_pda4");
+	else if (get_dm_sn() == BOARD_ID_PDA7_DM)
+		strcat(of_name, "_pda7");
 
 	strcat(of_name, ".dtb");
 }
+#endif
 
 void at91_mci0_hw_init(void)
 {
@@ -516,14 +523,11 @@ void at91_mci0_hw_init(void)
 	};
 
 	/* Configure the PIO controller */
-	pmc_enable_periph_clock(AT91C_ID_HSMCI0);
+	pmc_enable_periph_clock(AT91C_ID_PIOD);
 	pio_configure(mci_pins);
 
 	/* Enable the clock */
 	pmc_enable_periph_clock(AT91C_ID_HSMCI0);
-
-	/* Set of name function pointer */
-	sdcard_set_of_name = &sdcard_set_of_name_board;
 }
 #endif /* #ifdef CONFIG_SDCARD */
 

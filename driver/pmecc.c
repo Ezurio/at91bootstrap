@@ -56,35 +56,6 @@ static void pmecclor_writel(unsigned int value, unsigned reg)
 	writel(value, (AT91C_BASE_PMERRLOC + reg));
 }
 
-/*
- * Return 1 means valid pmecc error bits & sector size. otherwise return 0;
- */
-static int is_valid_pmecc_params(unsigned int sector_size,
-		unsigned int ecc_bits)
-{
-	int ret = 1;
-	switch (ecc_bits) {
-	case 2:
-	case 4:
-	case 8:
-	case 12:
-	case 24:
-		break;
-	default:
-		dbg_info("Invalid Pmecc error bits: %d. Should " \
-			"be 2, 4, 8, 12 or 24.\n", ecc_bits);
-		ret = 0;
-	}
-
-	if (sector_size != 512 && sector_size != 1024) {
-		dbg_info("Invalid Pmecc sector size: %d. Should " \
-				"be 512 or 1024.\n", sector_size);
-		ret = 0;
-	}
-
-	return ret;
-}
-
 int choose_pmecc_info(struct nand_info *nand, struct nand_chip *chip)
 {
 	unsigned int onfi_ecc_bits;
@@ -112,7 +83,7 @@ int choose_pmecc_info(struct nand_info *nand, struct nand_chip *chip)
 		onfi_sector_size = 512;
 	} else {
 		onfi_ecc_bits = chip->eccbits;
-		onfi_sector_size = 512;
+		onfi_sector_size = chip->eccwordsize;
 	}
 
 	/* If PMECC_SECTOR_SIZE/PMECC_ERROR_CORR_BITS no defined, use ONFI */
@@ -121,6 +92,23 @@ int choose_pmecc_info(struct nand_info *nand, struct nand_chip *chip)
 
 	if (!nand->ecc_err_bits)
 		nand->ecc_err_bits = onfi_ecc_bits;
+
+	/* check ONFI or defined parameters is compatible with PMECC? */
+	if (nand->ecc_err_bits <= 2) {
+		nand->ecc_err_bits = 2;
+	} else if (nand->ecc_err_bits <= 4) {
+		nand->ecc_err_bits = 4;
+	} else if (nand->ecc_err_bits <= 8) {
+		nand->ecc_err_bits = 8;
+	} else if (nand->ecc_err_bits <= 12) {
+		nand->ecc_err_bits = 12;
+	} else if (nand->ecc_err_bits <= 24) {
+		nand->ecc_err_bits = 24;
+	} else {
+		dbg_info("ERROR: PMECC not support %d-bit/%d-byte ECC.\n",
+				nand->ecc_err_bits, nand->ecc_sector_size);
+		return -1;
+	}
 
 	if (nand->ecc_sector_size != onfi_sector_size ||
 			nand->ecc_err_bits < onfi_ecc_bits)
@@ -143,13 +131,14 @@ int choose_pmecc_info(struct nand_info *nand, struct nand_chip *chip)
  *                8-bits                13-bytes                 14-bytes
  *               12-bits                20-bytes                 21-bytes
  *               24-bits                39-bytes                 42-bytes
+ *               32-bits                52-bytes                 56-bytes
  */
 int get_pmecc_bytes(unsigned int sector_size, unsigned int ecc_bits)
 {
 	int i;
-	int error_corr_bits[] =		{2, 4, 8,  12, 24};
-	int ecc_bytes_sec_512[] =	{4, 7, 13, 20, 39};
-	int ecc_bytes_sec_1024[] =	{4, 7, 14, 21, 42};
+	int error_corr_bits[] =		{2, 4, 8,  12, 24, 32};
+	int ecc_bytes_sec_512[] =	{4, 7, 13, 20, 39, 52};
+	int ecc_bytes_sec_1024[] =	{4, 7, 14, 21, 42, 56};
 
 	int ecc_bytes = 0;
 	for (i = 0; i < 5; i++) {
@@ -275,7 +264,7 @@ static int init_pmecc_descripter(struct _PMECC_paramDesc_struct *pmecc_params,
 
 	/* Get PMECC version first */
 	pmecc_params->version = pmecclor_readl(PMERRLOC_VERSION);
-	dbg_loud("PMECC: version is: %d\n", pmecc_params->version);
+	dbg_loud("PMECC: version is: %x\n", pmecc_params->version);
 
 	if ((nand->pagesize == 2048) || (nand->pagesize == 4096) ||
 			(nand->pagesize == 8192)) {
@@ -347,6 +336,9 @@ static int init_pmecc_descripter(struct _PMECC_paramDesc_struct *pmecc_params,
 			pmecc_params->errBitNbrCapability
 						= AT91C_PMECC_BCH_ERR24;
 			break;
+		case 32:
+			pmecc_params->errBitNbrCapability
+						= AT91C_PMECC_BCH_ERR32;
 		default:
 			dbg_info("PMECC: Invalid error correctable " \
 				"bits: %d\n", ecc_bits);
@@ -410,10 +402,6 @@ int init_pmecc(struct nand_info *nand)
 {
 	unsigned int sector_size = nand->ecc_sector_size;
 	unsigned int ecc_bits = nand->ecc_err_bits;
-
-	/* sanity check for the pmecc sector size and error bits */
-	if (!is_valid_pmecc_params(sector_size, ecc_bits))
-		return -1;
 
 	if (init_pmecc_descripter(&PMECC_paramDesc, nand) != 0)
 		return -1;
@@ -778,7 +766,7 @@ static unsigned int ErrorCorrection(unsigned long pPMERRLOC,
 		if (bytePos < sectorSize) {
 			/* If error is located in the data area(not in ECC) */
 			errByte = (unsigned char *)(sectorBaseAddress + bytePos);
-			dbg_info("Correct error bit @[#Byte %u,Bit# %u] " \
+			dbg_loud("Correct error bit @[#Byte %u,Bit# %u] " \
 				"%u -> %u\n",
 				(unsigned int)bytePos,
 				(unsigned int)bitPos,
@@ -789,7 +777,7 @@ static unsigned int ErrorCorrection(unsigned long pPMERRLOC,
 			/* error is located in oob area */
 			errByte = (unsigned char *)(eccBaseAddress
 					+ (bytePos - sectorSize));
-			dbg_info("Correct error bit in OOB @[#Byte %u,Bit# %u]" \
+			dbg_loud("Correct error bit in OOB @[#Byte %u,Bit# %u]" \
 				" %u -> %u\n",
 				(unsigned int)bytePos - sectorSize,
 				(unsigned int)bitPos,
@@ -877,6 +865,25 @@ static unsigned int PMECC_CorrectionAlgo(unsigned long pPMECC,
 	return 0;
 }
 
+static void buf_dump(unsigned char *buf, int offset, int len)
+{
+	int i = 0;
+	for (i = 0; i < len; i++) {
+		if (i % 16 == 0)
+			dbg_loud("\n");
+		dbg_loud("%u ", buf[offset + i]);
+	}
+}
+
+static void page_dump(unsigned char *buf, int page_size, int oob_size)
+{
+	dbg_loud("Dump Error Page: Data:\n");
+	buf_dump(buf, 0, page_size);
+	dbg_loud("\nOOB:\n");
+	buf_dump(buf, page_size, oob_size);
+	dbg_loud("\n");
+}
+
 int pmecc_process(struct nand_info *nand, unsigned char *buffer)
 {
 	int ret = 0;
@@ -902,7 +909,7 @@ int pmecc_process(struct nand_info *nand, unsigned char *buffer)
 		 * If we have 4 sectors, then that means the first
 		 * and last sector has errors.
 		 */
-		dbg_info("PMECC: sector bits = %d, bit 1 means corrupted sector, Now correcting...\n", erris);
+		dbg_loud("PMECC: sector bits = %d, bit 1 means corrupted sector, Now correcting...\n", erris);
 		result = PMECC_CorrectionAlgo(AT91C_BASE_PMECC,
 					AT91C_BASE_PMERRLOC,
 					&PMECC_paramDesc,

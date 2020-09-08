@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,6 @@
 
 #define MASTER_CLOCK		(100000000)
 #define	TOP_OF_MEMORY		0x310000
-#define PLL_LOCK_TIMEOUT	1000000
 
 #define PLL_SETTINGS		0x2031BF03
 
@@ -56,7 +55,6 @@
 * DataFlash Settings
 */
 #define CONFIG_SYS_SPI_CLOCK	AT91C_SPI_CLK
-#define CONFIG_SYS_SPI_BUS	0
 #define CONFIG_SYS_SPI_MODE	SPI_MODE0
 #define CONFIG_SYS_BASE_SPI	AT91C_BASE_SPI
 

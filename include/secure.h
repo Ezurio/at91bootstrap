@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2015, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,8 +40,6 @@ typedef struct at91_secure_header {
 	unsigned int		reserved[2];
 } at91_secure_header_t;
 
-
-int secure_decrypt(void *data, unsigned int data_length, int is_signed);
 int secure_check(void *data);
 
 #endif /* #ifdef __SECURE_H__ */

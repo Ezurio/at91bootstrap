@@ -2,14 +2,14 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2006, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * - Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the disclaiimer below.
+ * this list of conditions and the disclaimer below.
  *
  * Atmel's name may not be used to endorse or promote products derived from
  * this software without specific prior written permission.
@@ -27,8 +27,11 @@
  */
 #include "usart.h"
 #include "debug.h"
+#include "div.h"
 #include <stdarg.h>
+#include <string.h>
 
+#define ROW_SIZE	0x10
 #define MAX_BUFFER	128
 
 static char dbg_buf[MAX_BUFFER];
@@ -44,11 +47,35 @@ static inline short fill_string(char *buf, char *p)
 {
 	short num = 0;
 
+	if (!p)
+		p = "(null)";
+
 	while (*p != 0) {
 		*buf++ = *p++;
 		num++;
 	}
 
+	return num;
+}
+
+static inline short fill_dec_int(char *buf, unsigned int data)
+{
+	unsigned char rev[16], *dst;
+	unsigned int q, r;
+	short num = 0;
+
+	dst = rev;
+	q = data;
+	do {
+		division(q, 10, &q, &r);
+		*dst++ = '0' + r;
+		if (dst >= rev + sizeof(rev))
+		  break;
+	} while (q > 0);
+
+	while (--dst >= rev)
+		buf[num++] = *dst;
+	buf[num] = '\0';
 	return num;
 }
 
@@ -75,6 +102,7 @@ int dbg_printf(const char *fmt_str, ...)
 	va_list ap;
 
 	char *p = dbg_buf;
+	char fmtstring;
 
 	short num = 0;
 
@@ -87,26 +115,26 @@ int dbg_printf(const char *fmt_str, ...)
 			fmt_str += 2;
 		} else {
 			fmt_str++;	/* skip % */
-			switch (*fmt_str) {
-			case 'd':
-			case 'i':
-			case 'u':
-			case 'x':
+			fmtstring = *fmt_str;
+			if ((fmtstring == 'i') ||
+			    (fmtstring == 'd') ||
+			    (fmtstring == 'u')) {
+				int v = va_arg(ap, int);
+				if(v < 0 && fmtstring != 'u') {
+					*p++ = '-';
+					v = -v;
+				}
+				num = fill_dec_int(p, v);
+			} else if ((fmtstring == 'p') ||
+				   (fmtstring == 'x')) {
 				*p++ = '0';
 				*p++ = 'x';
 				num = fill_hex_int(p, va_arg(ap, unsigned int));
-
-				break;
-			case 's':
+			} else if (fmtstring == 's') {
 				num = fill_string(p, va_arg(ap, char *));
-
-				break;
-			case 'c':
-				num =
-				    fill_char(p, (char)va_arg(ap, signed long));
-
-				break;
-			default:
+			} else if (fmtstring == 'c') {
+				num = fill_char(p, (char)va_arg(ap, signed long));
+			} else {
 				va_end(ap);
 				return -1;
 			}
@@ -125,24 +153,69 @@ int dbg_printf(const char *fmt_str, ...)
 	return 0;
 }
 
-void buf_dump(unsigned char *buf, int offset, int len)
+static void dbg_hexdump_line(const unsigned char *buf)
 {
-	int i = 0;
-	for (i = 0; i < len; i++) {
-		if (i % 16 == 0)
-			dbg_loud("\n");
-		dbg_loud("%u ", buf[offset + i]);
+	unsigned int j;
+
+	for (j = 0; j < ROW_SIZE; j++)
+		dbg_printf(" %x", buf[j]);
+
+	dbg_printf("\t");
+
+	for (j = 0; j < ROW_SIZE; j++) {
+		if ((buf[j] < 0x20) || (buf[j] >= 0x7F))
+			dbg_printf(".");
+		else
+			dbg_printf("%c", (char) buf[j]);
 	}
+
+	dbg_printf("\n");
 }
 
-void page_dump(unsigned char *buf, int page_size, int oob_size)
+static void dbg_int_hexdump_line(const unsigned char *buf)
 {
-	dbg_loud("Dump Data:\n");
-	buf_dump(buf, 0, page_size);
-	if( oob_size > 0 )
-	{
-		dbg_loud("\nOOB:\n");
-		buf_dump(buf, page_size, oob_size);
-		dbg_loud("\n");
+	unsigned int j;
+	unsigned int *word;
+
+	word = (unsigned int *)buf;
+
+	for (j = 0; j < ROW_SIZE / 4; j++)
+		dbg_printf(" %x", word[j]);
+
+	dbg_printf("\n");
+}
+
+
+void dbg_hexdump(const unsigned char *buf,
+		 unsigned int size, unsigned int width)
+{
+	unsigned int r, row, delta;
+	unsigned int address = (unsigned int)buf;
+	void (*dump_line)(const unsigned char *buf);
+
+	row = size / ROW_SIZE;
+	if (size % ROW_SIZE)
+		row++;
+
+	if (width == DUMP_WIDTH_BIT_32) {
+		dump_line = dbg_int_hexdump_line;
+		delta = 4;
+	} else {
+		dump_line = dbg_hexdump_line;
+		delta = 1;
+	}
+
+	dbg_printf("%s:", "@address");
+	for (r = 0; r < ROW_SIZE;) {
+		dbg_printf(" %x", r);
+		r += delta;
+	}
+	dbg_printf("\n");
+
+	for (r = 0; r < row; r++) {
+		dbg_printf("%x:", address);
+		(*dump_line)(buf);
+		address += ROW_SIZE;
+		buf += ROW_SIZE;
 	}
 }

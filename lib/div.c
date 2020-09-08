@@ -2,7 +2,7 @@
  *         ATMEL Microcontroller Software Support
  * ----------------------------------------------------------------------------
  * Copyright (c) 2013, Atmel Corporation
-
+ *
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@ int division(unsigned int dividend,
 		for (shift = 0, divisor_shift = divisor;
 			dividend >= divisor_shift;
 			divisor_shift <<= 1, shift++) {
-			if (dividend - divisor_shift < divisor) {
+			if (dividend - divisor_shift < divisor_shift) {
 				factor += 1 << shift;
 				dividend -= divisor_shift;
 				end_flag = 1;
@@ -58,7 +58,7 @@ int division(unsigned int dividend,
 		}
 
 		if (end_flag)
-			break;
+			continue;
 
 		factor += 1 << (shift - 1);
 		dividend -= divisor_shift >> 1;
