@@ -30,7 +30,7 @@ ifdef SOURCE_DATE_EPOCH
 else
 	DATE := $(shell date)
 endif
-LRD_BLD_NUMBER := 7.0.0.673
+LRD_BLD_NUMBER := 7.0.0.674
 VERSION := 3.9.3
 REVISION := $(LRD_BLD_NUMBER)
 SCMINFO := $(shell ($(TOPDIR)/host-utilities/setlocalversion $(TOPDIR)))
