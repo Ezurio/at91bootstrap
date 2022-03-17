@@ -2,18 +2,12 @@
 log
 log/*
 config/at91bootstrap-config/
-config/conf
-config/conf.o
-config/kxgettext.o
-config/lex.zconf.c
-config/zconf.hash.c
-config/zconf.tab.c
-config/zconf.tab.o
-config/.depend
 .config.cmd
 .config.old
 .auto.deps
+.prepared
 build
+debug
 result
 binaries
 *~
@@ -22,3 +16,6 @@ binaries
 tags
 *.swp
 *.pyc
+scripts/**/*$py.class
+default.config
+default.config.old

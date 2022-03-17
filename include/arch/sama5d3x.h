@@ -163,6 +163,12 @@
 #define AT91C_BASE_AXI_MATRIX	0x00800000	/* AXI Maxtrix */
 #define AT91C_BASE_DAP		0x00900000	/* DAP */
 
+/* Internal ROM PMECC Galois Field Tables offsets */
+#define PMECC_GF_TABLE_512_ALPHA_OFFSET		0x14000
+#define PMECC_GF_TABLE_512_INDEX_OFFSET		0x10000
+#define PMECC_GF_TABLE_1024_ALPHA_OFFSET	0x20000
+#define PMECC_GF_TABLE_1024_INDEX_OFFSET	0x18000
+
 /*
  * External memory
  */

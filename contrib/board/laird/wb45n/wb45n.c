@@ -32,7 +32,7 @@ static void at91_dbgu_hw_init(void)
 		{ NULL,  0,                0, PIO_DEFAULT, PIO_PERIPH_A },
 	};
 
-	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
+	pmc_enable_periph_clock(AT91C_ID_PIOA_B, PMC_PERIPH_CLK_DIVIDER_NA);
 	pio_configure(dbgu_pins);
 }
 
@@ -131,7 +131,7 @@ static void gpio_init(void)
 	};
 
 	/* Configure the PIO controller */
-	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
+	pmc_enable_periph_clock(AT91C_ID_PIOA_B, PMC_PERIPH_CLK_DIVIDER_NA);
 	pio_configure(gpios);
 }
 #endif
@@ -145,7 +145,7 @@ void at91_disable_smd_clock(void)
 	 */
 	pmc_enable_system_clock(AT91C_PMC_SMDCK);
 	pmc_set_smd_clock_divider(AT91C_PMC_SMDDIV);
-	pmc_enable_periph_clock(AT91C_ID_SMD);
+	pmc_enable_periph_clock(AT91C_ID_SMD, PMC_PERIPH_CLK_DIVIDER_NA);
 	writel(0xF, (0x0C + AT91C_BASE_SMD));
 	pmc_disable_periph_clock(AT91C_ID_SMD);
 	pmc_disable_system_clock(AT91C_PMC_SMDCK);
@@ -168,10 +168,12 @@ void hw_init(void)
 	pmc_cfg_plla(PLLA_SETTINGS);
 
 	/* Switch PCK/MCK on Main clock output */
-	pmc_cfg_mck(BOARD_PRESCALER_MAIN_CLOCK);
+	pmc_mck_cfg_set(0, BOARD_PRESCALER_MAIN_CLOCK,
+			AT91C_PMC_PLLADIV2 | AT91C_PMC_MDIV | AT91C_PMC_CSS);
 
 	/* Switch PCK/MCK on PLLA output */
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
+	pmc_mck_cfg_set(0, BOARD_PRESCALER_PLLA,
+			AT91C_PMC_PLLADIV2 | AT91C_PMC_MDIV | AT91C_PMC_CSS);
 
 	/* Enable External Reset */
 	writel(AT91C_RSTC_KEY_UNLOCK | AT91C_RSTC_URSTEN, AT91C_BASE_RSTC + RSTC_RMR);
@@ -218,11 +220,11 @@ void at91_mci0_hw_init(void)
 	};
 
 	/* Configure the PIO controller */
-	pmc_enable_periph_clock(AT91C_ID_PIOA_B);
+	pmc_enable_periph_clock(AT91C_ID_PIOA_B, PMC_PERIPH_CLK_DIVIDER_NA);
 	pio_configure(mci_pins);
 
 	/* Enable the clock */
-	pmc_enable_periph_clock(AT91C_ID_HSMCI0);
+	pmc_enable_periph_clock(AT91C_ID_HSMCI0, PMC_PERIPH_CLK_DIVIDER_NA);
 }
 #endif /* CONFIG_SDCARD */
 
@@ -277,6 +279,6 @@ void nandflash_hw_init(void)
 	/* Configure the PIO controller */
 	pio_configure(nand_pins_lo);
 
-	pmc_enable_periph_clock(AT91C_ID_PIOC_D);
+	pmc_enable_periph_clock(AT91C_ID_PIOC_D, PMC_PERIPH_CLK_DIVIDER_NA);
 }
 #endif /* CONFIG_NANDFLASH */

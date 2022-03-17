@@ -27,7 +27,7 @@
  */
 #include "hardware.h"
 #include "board.h"
-#include "common.h"
+#include "clk-common.h"
 #include "timer.h"
 #include "arch/at91_pmc/pmc.h"
 #include "arch/at91_sfr.h"
@@ -44,15 +44,9 @@ void lowlevel_clock_init()
 	 * parameters. It is assumed that ROM code set H32MXDIV, PLLADIV2,
 	 * PCK_DIV3.
 	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~AT91C_PMC_CSS);
-	tmp |= AT91C_PMC_CSS_SLOW_CLK;
-	write_pmc(PMC_MCKR, tmp);
+	pmc_mck_cfg_set(0, AT91C_PMC_CSS_SLOW_CLK, AT91C_PMC_CSS);
 
-	while (!(read_pmc(PMC_SR) & AT91C_PMC_MCKRDY))
-		;
-
-#if defined(CONFIG_SAMA5D3X_CMP)
+#ifdef CONFIG_SAMA5D3X_CMP
 	/*
 	 * On the sama5d3x_cmp board, a phy is not in the proper reset state
 	 * after power-up, additional reset
@@ -60,8 +54,10 @@ void lowlevel_clock_init()
 	rstc_external_reset();
 #endif
 
-#if defined(AT91SAM9X5) || defined(AT91SAM9N12) || defined(SAMA5D3X) \
-	|| defined(SAMA5D4) || defined(SAMA5D2) || defined(SAM9X60)
+#if defined(CONFIG_AT91SAM9X5) || defined(CONFIG_AT91SAM9N12) \
+	|| defined(CONFIG_SAMA5D3X) || defined(CONFIG_SAMA5D4) \
+	|| defined(CONFIG_SAMA5D2) || defined(CONFIG_SAM9X60) \
+	|| defined(CONFIG_SAMA7G5)
 	/*
 	 * Enable the Main Crystal Oscillator
 	 * tST_max = 2ms
@@ -78,20 +74,26 @@ void lowlevel_clock_init()
 	while (!(read_pmc(PMC_SR) & AT91C_PMC_MOSCXTS))
 		;
 
-#if defined(SAMA5D2)
+#if defined(CONFIG_SAMA5D2) || defined(CONFIG_SAMA7G5)
 	/* Enable a measurement of the Main Cristal Oscillator */
 	tmp = read_pmc(PMC_MCFR);
 	tmp |= AT91C_CKGR_CCSS_XTAL_OSC;
 	tmp |= AT91C_CKGR_RCMEAS;
 	write_pmc(PMC_MCFR, tmp);
 
-	while (!(read_pmc(PMC_MCFR) & AT91C_CKGR_MAINRDY))
+	while (!(tmp = read_pmc(PMC_MCFR) & AT91C_CKGR_MAINRDY))
 		;
+
+#if defined(CONFIG_SAMA7G5) && 0
+	tmp = (tmp & AT91C_CKGR_MAINF) * 32768 / 16;
+	if (tmp != pmc_mck_get_rate(0))
+		return;
+#endif
 #endif
 
 	/* Switch from internal 12MHz RC to the Main Cristal Oscillator */
 	tmp = read_pmc(PMC_MOR);
-#if defined (CONFIG_MCK_BYPASS)
+#ifdef CONFIG_MCK_BYPASS
 	tmp |= (AT91C_CKGR_MOSCXTBY);
 #endif
 	tmp &= (~AT91C_CKGR_KEY);
@@ -107,7 +109,8 @@ void lowlevel_clock_init()
 	while (!(read_pmc(PMC_SR) & AT91C_PMC_MOSCSELS))
 		;
 
-#if !defined(SAMA5D4) && !defined(SAMA5D2)
+#if !defined(CONFIG_SAMA5D4) && !defined(CONFIG_SAMA5D2) \
+	&& !defined(CONFIG_SAMA7G5) && !defined(CONFIG_AT91SAM9N12)
 	/* Disable the 12MHz RC Oscillator */
 	tmp = read_pmc(PMC_MOR);
 	tmp &= (~AT91C_CKGR_MOSCRCEN);
@@ -130,86 +133,21 @@ void lowlevel_clock_init()
 
 	while (!(read_pmc(PMC_SR) & AT91C_PMC_MOSCXTS))
 		;
-#endif
+#endif /* CONFIG_AT91SAM9X5 || CONFIG_AT91SAM9N12 || CONFIG_SAMA5D3X ||
+        * CONFIG_SAMA5D4 || CONFIG_SAMA5D2 || CONFIG_SAM9X60 */
 
 	/* After stablization, switch to Main Clock */
-	if ((read_pmc(PMC_MCKR) & AT91C_PMC_CSS) == AT91C_PMC_CSS_SLOW_CLK) {
-		tmp = read_pmc(PMC_MCKR);
-		tmp &= (~(0x1 << 13));
-		tmp &= ~AT91C_PMC_CSS;
-		tmp |= AT91C_PMC_CSS_MAIN_CLK;
-		write_pmc(PMC_MCKR, tmp);
-
-		while (!(read_pmc(PMC_SR) & AT91C_PMC_MCKRDY))
-			;
-
-		tmp &= ~AT91C_PMC_PRES;
-		tmp |= AT91C_PMC_PRES_CLK;
-		write_pmc(PMC_MCKR, tmp);
-
-		while (!(read_pmc(PMC_SR) & AT91C_PMC_MCKRDY))
-			;
-	}
+#if defined(CONFIG_AT91SAM9X5) || defined(CONFIG_AT91SAM9N12) \
+	|| defined(CONFIG_SAMA5D3X) || defined(CONFIG_SAMA5D4) \
+	|| defined(CONFIG_SAMA5D2)
+	pmc_mck_cfg_set(0, AT91C_PMC_CSS_MAIN_CLK | AT91C_PMC_PRES_CLK,
+			AT91C_PMC_CSS | AT91C_PMC_ALT_PRES);
+#else
+	pmc_mck_cfg_set(0, AT91C_PMC_CSS_MAIN_CLK | AT91C_PMC_PRES_CLK,
+			AT91C_PMC_CSS | AT91C_PMC_PRES);
+#endif
 
 	return;
-}
-
-int pmc_cfg_mck(unsigned int pmc_mckr)
-{
-	unsigned int tmp;
-
-	/*
-	 * Program the PRES field in the PMC_MCKR register
-	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~(0x1 << 13));
-#if defined(AT91SAM9X5) || defined(AT91SAM9N12) || defined(SAMA5D3X) \
-	|| defined(SAMA5D4) || defined(SAMA5D2)
-	tmp &= (~AT91C_PMC_ALT_PRES);
-	tmp |= (pmc_mckr & AT91C_PMC_ALT_PRES);
-#else
-	tmp &= (~AT91C_PMC_PRES);
-	tmp |= (pmc_mckr & AT91C_PMC_PRES);
-#endif
-	write_pmc(PMC_MCKR, tmp);
-
-	/*
-	 * Program the MDIV field in the PMC_MCKR register
-	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~AT91C_PMC_MDIV);
-	tmp |= (pmc_mckr & AT91C_PMC_MDIV);
-	write_pmc(PMC_MCKR, tmp);
-
-	/*
-	 * Program the PLLADIV2 field in the PMC_MCKR register
-	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~AT91C_PMC_PLLADIV2);
-	tmp |= (pmc_mckr & AT91C_PMC_PLLADIV2);
-	write_pmc(PMC_MCKR, tmp);
-
-	/*
-	 * Program the H32MXDIV field in the PMC_MCKR register
-	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~AT91C_PMC_H32MXDIV);
-	tmp |= (pmc_mckr & AT91C_PMC_H32MXDIV);
-	write_pmc(PMC_MCKR, tmp);
-
-	/*
-	 * Program the CSS field in the PMC_MCKR register,
-	 * wait for MCKRDY bit to be set in the PMC_SR register
-	 */
-	tmp = read_pmc(PMC_MCKR);
-	tmp &= (~AT91C_PMC_CSS);
-	tmp |= (pmc_mckr & AT91C_PMC_CSS);
-	write_pmc(PMC_MCKR, tmp);
-
-	while (!(read_pmc(PMC_SR) & AT91C_PMC_MCKRDY))
-		;
-
-	return 0;
 }
 
 int pmc_cfg_pck(unsigned char x, unsigned int clk_sel, unsigned int prescaler)
@@ -241,21 +179,37 @@ void pmc_set_smd_clock_divider(unsigned int divider)
 	write_pmc(PMC_SMD, tmp);
 }
 
-int pmc_check_mck_h32mxdiv(void)
-{
-#ifdef CPU_HAS_H32MXDIV
-	return read_pmc(PMC_MCKR) & AT91C_PMC_H32MXDIV;
-#else
-	return 0;
-#endif
-}
-
 unsigned int at91_get_ahb_clock(void)
 {
-	if (pmc_check_mck_h32mxdiv())
+	if (pmc_mck_check_h32mxdiv())
 		return MASTER_CLOCK / 2;
 
 	return MASTER_CLOCK;
+}
+
+unsigned int pmc_mainck_get_rate(void)
+{
+#if defined(CONFIG_AT91SAM9X5) || defined(CONFIG_AT91SAM9N12) || \
+	defined(CONFIG_SAMA5D3X) || defined(CONFIG_SAMA5D4) || \
+	defined(CONFIG_SAMA5D2) || defined(CONFIG_SAM9X60) || \
+	defined(CONFIG_SAMA7G5)
+	unsigned int val = read_pmc(PMC_MOR);
+
+	if (val & AT91C_CKGR_MOSCSEL)
+		/* Crystal oscillator. */
+#if defined(BOARD_MAINOSC)
+		return BOARD_MAINOSC;
+#else
+		return 0;
+#endif
+	else
+		/* Embedded RC oscillator. */
+		return 12000000;
+#elif defined(BOARD_MAINOSC)
+	return BOARD_MAINOSC;
+#endif
+
+	return 0;
 }
 
 #if defined(CONFIG_ENTER_NWD)
@@ -354,4 +308,4 @@ void pmc_smd_setup(unsigned int val)
 
 	write_pmc(PMC_SMD, val);
 }
-#endif	/* #if defined(CONFIG_ENTER_NWD) */
+#endif /* CONFIG_ENTER_NWD */

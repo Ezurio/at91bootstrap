@@ -32,4 +32,8 @@ extern void cpu_reset(void);
 
 extern void rstc_external_reset(void);
 
+extern void rstc_ddr_phy_rst_deassert(void);
+extern void rstc_ddr_rst_deassert(void);
+extern void rstc_ddr_assert(void);
+
 #endif	/* #ifndef __RSTC_H__ */

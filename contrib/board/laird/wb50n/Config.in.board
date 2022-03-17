@@ -1,4 +1,4 @@
-config CONFIG_WB50N
+config WB50N
 	bool "wb50n"
 	select SAMA5D3X
 	select CONFIG_DDRC

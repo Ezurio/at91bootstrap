@@ -158,6 +158,12 @@
 #define AT91C_BASE_UHPHS_OHCI	0x00600000      /* UHPHS_OHCI Base address*/
 #define AT91C_BASE_UHPHS_EHCI	0x00700000      /* UHPHS_EHCI Base address*/
 
+/* Internal ROM PMECC Galois Field Tables offsets */
+#define PMECC_GF_TABLE_512_ALPHA_OFFSET		0x4000
+#define PMECC_GF_TABLE_512_INDEX_OFFSET		0x0000
+#define PMECC_GF_TABLE_1024_ALPHA_OFFSET	0x10000
+#define PMECC_GF_TABLE_1024_INDEX_OFFSET	0x8000
+
 /*
  * External memory
  */
@@ -174,9 +180,6 @@
 #define AT91C_NUM_PIO		4
 #define AT91C_NUM_TWI		0
 #define	AT91C_NUM_FLEXCOM	13
-
-#define PLL_ID_PLLA 0
-#define PLL_ID_UPLL 1
 
 /*
  * SoC specific defines

@@ -1,4 +1,4 @@
-config CONFIG_WB45N
+config WB45N
 	bool "wb45n"
 	select AT91SAM9X5
 	select CONFIG_DDRC

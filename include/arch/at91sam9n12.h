@@ -124,6 +124,12 @@
 #define AT91C_BASE_SRAM		0x00300000	/* Internal SRAM */
 #define AT91C_UHP_BASE		0x00500000	/* USB Host controller */
 
+/* Internal ROM PMECC Galaois Field Tables offsets */
+#define PMECC_GF_TABLE_512_ALPHA_OFFSET		0xC000
+#define PMECC_GF_TABLE_512_INDEX_OFFSET		0x8000
+#define PMECC_GF_TABLE_1024_ALPHA_OFFSET	0x18000
+#define PMECC_GF_TABLE_1024_INDEX_OFFSET	0x10000
+
 /*
  * External memory
  */
