@@ -1,7 +1,7 @@
 config WB40N
 	bool "wb40n"
 	select AT91SAM9G20
-	select CONFIG_SDRAM
+	select SDRAM
 	select ALLOW_SDRAM_16BIT
 	select ALLOW_NANDFLASH
 	select ALLOW_SDCARD
