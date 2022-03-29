@@ -1,7 +1,7 @@
 config WB45N
 	bool "wb45n"
 	select AT91SAM9X5
-	select CONFIG_DDRC
+	select DDRC
 	select ALLOW_NANDFLASH
 	select ALLOW_SDCARD
 	select ALLOW_HSMCI
