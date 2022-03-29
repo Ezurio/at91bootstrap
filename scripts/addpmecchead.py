@@ -19,6 +19,10 @@ def pmecchead(dot_config_path, binaries_path):
             os.mkdir(binaries_path)
         if find_in_file(dot_config_path, "CONFIG_SAMA5D2_PTC_EK=y"):
             pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 4, 512)
+        elif find_in_file(dot_config_path, "CONFIG_WB45N=y"):
+            pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 4, 512)
+        elif find_in_file(dot_config_path, "CONFIG_WB50N=y"):
+            pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 8, 512)
         elif find_in_file(dot_config_path, "CONFIG_SAMA5D3X=y"):
             pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 4, 512)
         elif find_in_file(dot_config_path, "CONFIG_SAMA5D4EK=y"):
@@ -37,10 +41,6 @@ def pmecchead(dot_config_path, binaries_path):
             pmecc_word = pmecc_head.gen_pmecc_header(4096, 224, 8, 512)
         elif find_in_file(dot_config_path, "CONFIG_CORE9G25=y"):
             pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 2, 512)
-        elif find_in_file(dot_config_path, "CONFIG_WB45N=y"):
-            pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 4, 512)
-        elif find_in_file(dot_config_path, "CONFIG_WB50N=y"):
-            pmecc_word = pmecc_head.gen_pmecc_header(2048, 64, 8, 512)
         else:
             return
     else:
