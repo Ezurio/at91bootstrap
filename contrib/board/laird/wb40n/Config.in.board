@@ -1,4 +1,4 @@
-config CONFIG_WB40N
+config WB40N
 	bool "wb40n"
 	select AT91SAM9G20
 	select CONFIG_SDRAM

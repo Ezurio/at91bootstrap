@@ -250,7 +250,7 @@ static int of_get_nextnode_offset(void *blob,
 	return 0;
 }
 
-static int of_get_node_offset(void *blob, char *name, int *offset)
+static int of_get_node_offset(void *blob, const char *name, int *offset)
 {
 	int start_offset = 0;
 	int nodeoffset = 0;
@@ -369,7 +369,7 @@ static int of_get_next_property_offset(void *blob,
 
 static int of_get_property_offset_by_name(void *blob,
 					unsigned int nodeoffset,
-					char *name,
+					const char *name,
 					int *offset)
 {
 	unsigned int nameoffset;
@@ -521,7 +521,7 @@ static int of_update_property_value(void *blob,
 
 static int of_set_property(void *blob,
 				int nodeoffset,
-				char *property_name,
+				const char *property_name,
 				void *value,
 				int valuelen)
 {
@@ -572,7 +572,7 @@ int fixup_chosen_node(void *blob, char *bootargs)
 
 	ret = of_get_node_offset(blob, "chosen", &nodeoffset);
 	if (ret) {
-		dbg_info("DT: doesn't support add node\n");
+		dbg_info("DT: doesn't support add node (chosen)\n");
 		return ret;
 	}
 
@@ -606,7 +606,7 @@ int fixup_memory_node(void *blob,
 
 	ret = of_get_node_offset(blob, "memory", &nodeoffset);
 	if (ret) {
-		dbg_info("DT: doesn't support add node\n");
+		dbg_info("DT: doesn't support add node (memory)\n");
 		return ret;
 	}
 

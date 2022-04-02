@@ -48,7 +48,6 @@
 
 #define PLLA_DIV 1
 #define PLLA_COUNT 0x3f
-#define PLLA_LOOP_FILTER 0
 #define PLLA_CLOCK 200000000
 #define PLLA_FRACR(_p, _q) \
 	((unsigned int)((((unsigned long)(_p)) << 22) / (_q)))
@@ -64,7 +63,7 @@ static void at91_dbgu_hw_init(void)
 
 	pio_configure(dbgu_pins);
 
-	pmc_enable_periph_clock(AT91C_ID_DBGU);
+	pmc_enable_periph_clock(AT91C_ID_DBGU, PMC_PERIPH_CLK_DIVIDER_NA);
 }
 
 static void initialize_dbgu(void)
@@ -74,7 +73,14 @@ static void initialize_dbgu(void)
 }
 
 #ifdef CONFIG_DDR2
-
+/*
+ * DDR2 timing configuration for SAM9X60 SiP variants
+ *
+ * CONFIG_RAM_128MB is used to identify SAM9X60D1G
+ *                  it embeds W971GG6SB (25I speed grade)
+ * CONFIG_RAM_64MB  is used to identify SAM9X60D5M
+ *                  it embeds W9751G6KB (25I speed grade)
+ */
 static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 {
 	ddramc_config->mdr = (AT91C_DDRC2_DBW_16_BITS |
@@ -84,18 +90,47 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 				AT91C_DDRC2_NR_13 |
 				AT91C_DDRC2_CAS_3 |
 				AT91C_DDRC2_WEAK_STRENGTH_RZQ7 |
-				AT91C_DDRC2_NB_BANKS_8 |
 				AT91C_DDRC2_DECOD_INTERLEAVED |
 				AT91C_DDRC2_UNAL_SUPPORTED);
 
+#if defined(CONFIG_RAM_128MB)
+	ddramc_config->cr |= AT91C_DDRC2_NB_BANKS_8;
+#elif defined(CONFIG_RAM_64MB)
+	ddramc_config->cr |= AT91C_DDRC2_NB_BANKS_4;
+#else
+#error "No proper DDR2 memory size for SiP provided"
+#endif
+
+#if defined(CONFIG_BUS_SPEED_200MHZ)
 	/*
 	 * This value is set for normal operating conditions.
 	 * Change this to :
-	 * ddramc_config->rtr = 0x30e;
-	 * for temperatures > 85C
+	 * ddramc_config->rtr = 0x30c (3900 ns / 5 ns);
+	 * for temperatures > 85C (at 200 MHz bus speed)
 	 */
 	ddramc_config->rtr = 0x618;
 
+#if defined(CONFIG_RAM_128MB)
+	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(8)
+				| AT91C_DDRC2_TRCD_(3)
+				| AT91C_DDRC2_TWR_(3)
+				| AT91C_DDRC2_TRC_(11)
+				| AT91C_DDRC2_TRP_(3)
+				| AT91C_DDRC2_TRRD_(2)
+				| AT91C_DDRC2_TWTR_(2)
+				| AT91C_DDRC2_TMRD_(2));
+
+	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)
+				| AT91C_DDRC2_TXSRD_(200)
+				| AT91C_DDRC2_TXSNR_(28)
+				| AT91C_DDRC2_TRFC_(26));
+
+	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(9)
+				| AT91C_DDRC2_TRTP_(2)
+				| AT91C_DDRC2_TRPA_(4)		/* = Trp + 1 */
+				| AT91C_DDRC2_TXARDS_(8)
+				| AT91C_DDRC2_TXARD_(2));
+#else
 	ddramc_config->t0pr = (AT91C_DDRC2_TRAS_(9)
 				| AT91C_DDRC2_TRCD_(3)
 				| AT91C_DDRC2_TWR_(3)
@@ -107,14 +142,19 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)
 				| AT91C_DDRC2_TXSRD_(200)
-				| AT91C_DDRC2_TXSNR_(41)
-				| AT91C_DDRC2_TRFC_(39));
+				| AT91C_DDRC2_TXSNR_(23)
+				| AT91C_DDRC2_TRFC_(21));
 
 	ddramc_config->t2pr = (AT91C_DDRC2_TFAW_(9)
 				| AT91C_DDRC2_TRTP_(2)
-				| AT91C_DDRC2_TRPA_(4)
+				| AT91C_DDRC2_TRPA_(3)		/* = Trp */
 				| AT91C_DDRC2_TXARDS_(8)
 				| AT91C_DDRC2_TXARD_(2));
+#endif /* RAM SIZE */
+
+#else
+#error "No CLK setting defined for this BUS speed configuration"
+#endif
 }
 
 static void ddramc_init(void)
@@ -130,7 +170,7 @@ static void ddramc_init(void)
 	reg |= (AT91C_EBI_CS1A | AT91C_EBI_DDR_MP_EN | AT91C_EBI_NFD0_ON_D16);
 	writel(reg, (AT91C_BASE_SFR + SFR_DDRCFG));
 
-	pmc_enable_periph_clock(AT91C_ID_MPDDRC);
+	pmc_enable_periph_clock(AT91C_ID_MPDDRC, PMC_PERIPH_CLK_DIVIDER_NA);
 	pmc_enable_system_clock(AT91C_PMC_DDR);
 
 	ddramc_reg_config(&ddramc_reg);
@@ -152,6 +192,8 @@ static void ddramc_init(void)
 
 	ddramc_dump_regs(AT91C_BASE_MPDDRC);
 }
+#else
+#error "No proper DDR-SDRAM device type provided"
 #endif /* CONFIG DDR2 */
 
 static void at91_green_led_on(void)
@@ -171,7 +213,7 @@ unsigned int at91_flexcom0_init(void)
 	};
 
 	pio_configure(flx_pins);
-	pmc_enable_periph_clock(AT91C_ID_FLEXCOM0);
+	pmc_enable_periph_clock(AT91C_ID_FLEXCOM0, PMC_PERIPH_CLK_DIVIDER_NA);
 
 	flexcom_init(0);
 
@@ -227,10 +269,11 @@ void hw_init(void)
 	plla_config.div = PLLA_DIV;
 	plla_config.count = PLLA_COUNT;
 	plla_config.fracr = 0;
-	plla_config.loop_filter = PLLA_LOOP_FILTER;
+	plla_config.acr = AT91C_PLL_ACR_DEFAULT_PLLA;
 	pmc_sam9x60_cfg_pll(PLL_ID_PLLA, &plla_config);
 
-	pmc_cfg_mck(BOARD_PRESCALER_PLLA);
+	pmc_mck_cfg_set(0, BOARD_PRESCALER_PLLA,
+			AT91C_PMC_PRES | AT91C_PMC_MDIV | AT91C_PMC_CSS);
 
 	/* Initialize dbgu */
 	initialize_dbgu();
@@ -274,7 +317,7 @@ void at91_qspi_hw_init(void)
 	pio_configure(qspi_pins);
 
 	pmc_enable_system_clock(AT91C_PMC_QSPICLK);
-	pmc_enable_periph_clock(CONFIG_SYS_ID_QSPI);
+	pmc_enable_periph_clock(CONFIG_SYS_ID_QSPI, PMC_PERIPH_CLK_DIVIDER_NA);
 }
 #endif  /* #ifdef CONFIG_QSPI */
 
@@ -304,7 +347,7 @@ void at91_sdhc_hw_init(void)
 	};
 	pio_configure(sdmmc_pins);
 
-	pmc_enable_periph_clock(CONFIG_SYS_ID_SDHC);
+	pmc_enable_periph_clock(CONFIG_SYS_ID_SDHC, PMC_PERIPH_CLK_DIVIDER_NA);
 	pmc_enable_generic_clock(CONFIG_SYS_ID_SDHC,
 				 GCK_CSS_PLLA_CLK,
 				 ATMEL_SDHC_GCKDIV_VALUE);
@@ -339,7 +382,7 @@ void nandflash_hw_init(void)
 	};
 
 	pio_configure(nand_pins);
-	pmc_enable_periph_clock(AT91C_ID_PIOD);
+	pmc_enable_periph_clock(AT91C_ID_PIOD, PMC_PERIPH_CLK_DIVIDER_NA);
 
 	reg = readl(AT91C_BASE_SFR + SFR_CCFG_EBICSA);
 	reg |= AT91C_EBI_CS3A_SM | AT91C_EBI_NFD0_ON_D16;

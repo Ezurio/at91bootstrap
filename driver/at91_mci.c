@@ -62,7 +62,8 @@ static int at91_mci_set_clock_blklen(unsigned int clock,
 	reg |= (blklen << 16);
 	mci_writel(MCI_BLKR, reg);
 
-#if defined(AT91SAM9X5) || defined(AT91SAM9N12) || defined(SAMA5D3X)
+#if defined(CONFIG_AT91SAM9X5) || defined(CONFIG_AT91SAM9N12) \
+	|| defined(CONFIG_SAMA5D3X)
 	clkdiv -= 2;
 	reg = mci_readl(MCI_MR);
 	reg &= ~((0x01 << 8) - 1);
@@ -102,9 +103,13 @@ static int at91_mci_init(struct sd_card *sdcard)
 	/* enable Read Proof and Write Proof   */
 	mci_writel(MCI_MR, AT91C_MCI_RDPROOF_ENABLE | AT91C_MCI_WRPROOF_ENABLE);
 
+#if defined(CONFIG_MCI_SLOTA)
 	/* select Slot A and set bus width 1 bit*/
-	mci_writel(MCI_SDCR, AT91C_MCI_SCDSEL_SLOTA
-				| AT91C_MCI_SCDBUS_1BIT);
+	mci_writel(MCI_SDCR, AT91C_MCI_SCDSEL_SLOTA | AT91C_MCI_SCDBUS_1BIT);
+#elif defined(CONFIG_MCI_SLOTB)
+	/* select Slot B and set bus width 1 bit*/
+	mci_writel(MCI_SDCR, AT91C_MCI_SCDSEL_SLOTB | AT91C_MCI_SCDBUS_1BIT);
+#endif
 
 	/* set the Data Timeout Register */
 	mci_writel(MCI_DTOR, 0x7f);
@@ -396,7 +401,7 @@ int sdcard_register_at91_mci(struct sd_card *sdcard)
 	sdcard->host->caps_voltages = SD_OCR_VDD_32_33 | SD_OCR_VDD_33_34;
 	sdcard->host->caps_bus_width = BUS_WIDTH_1_BIT | BUS_WIDTH_4_BIT;
 
-#ifdef CPU_HAS_HSMCI0
+#ifdef CONFIG_CPU_HAS_HSMCI0
 	sdcard->host->caps_high_speed = 1;
 	sdcard->host->caps_bus_width |= BUS_WIDTH_8_BIT;
 #endif

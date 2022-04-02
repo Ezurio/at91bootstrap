@@ -1,2 +1,2 @@
-config CONFIG_BOARDNAME
-	default "wb50n"	if CONFIG_WB50N
+config BOARDNAME
+	default "wb50n"	if WB50N

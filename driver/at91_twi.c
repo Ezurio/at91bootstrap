@@ -32,13 +32,13 @@
 #include "debug.h"
 #include "pmc.h"
 
-#if defined(AT91SAM9X5)
+#if defined(CONFIG_AT91SAM9X5)
 #define TWI_CLK_OFFSET (4)
-#elif defined(SAMA5D2)
+#elif defined(CONFIG_SAMA5D2)
 #define TWI_CLK_OFFSET (3) /* TODO: handle GCK case (offset=0) */
-#elif defined(SAMA5D3)
+#elif defined(CONFIG_SAMA5D3X)
 #define TWI_CLK_OFFSET (4)
-#elif defined(SAMA5D4)
+#elif defined(CONFIG_SAMA5D4)
 #define TWI_CLK_OFFSET (4)
 #else
 #define TWI_CLK_OFFSET (4)
@@ -273,7 +273,7 @@ int twi_write(unsigned int bus, unsigned char device_addr,
 	return 0;
 }
 
-void twi_bus_init(unsigned int (*at91_twi_hw_init)(void))
+int twi_bus_init(unsigned int (*at91_twi_hw_init)(void))
 {
 	unsigned int bus_clock = at91_get_ahb_clock();
 	unsigned int base = at91_twi_hw_init();
@@ -281,7 +281,7 @@ void twi_bus_init(unsigned int (*at91_twi_hw_init)(void))
 
 	bus = at91_twi_register_bus(base);
 	if (bus < 0)
-		return;
+		return bus;
 
 	twi_configure_master_mode(bus, bus_clock, TWI_CLOCK);
 
@@ -291,4 +291,6 @@ void twi_bus_init(unsigned int (*at91_twi_hw_init)(void))
 	at24xx_twi_bus	= 0xff;
 
 	twi_init_done = 1;
+
+	return bus;
 }

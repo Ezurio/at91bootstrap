@@ -15,7 +15,3 @@ ASFLAGS += \
 	-DCONFIG_WB50N \
 	-mcpu=cortex-a5
 endif
-
-ifeq ($(CPU_HAS_PMECC),y)
-	PMECC_HEADER := "board/pmecc_header8.bin"
-endif

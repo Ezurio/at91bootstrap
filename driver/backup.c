@@ -39,11 +39,23 @@
 #define dbg_bkp_sf(fmt_str)	do {} while (0)
 #endif
 
+#define BACKUP_DDR_PHY_CALIBRATION	(9)
+
+/**
+ * struct at91_pm_bu - PM data saved by Linux
+ * @suspended: true if returning from backup mode
+ * @reserved: reserved
+ * @canary: pointer to data saved by Linux for self-refresh checking
+ * @resume: physical address with resuming code that AT91Bootstrap should
+ * jump to
+ * @ddr_phy_calibration: DDR PHY calibration data saved before suspending
+ */
 static struct at91_pm_bu {
 	int suspended;
 	unsigned long *reserved;
 	unsigned long *canary;
 	unsigned long resume;
+	unsigned long ddr_phy_calibration[BACKUP_DDR_PHY_CALIBRATION];
 } *pm_bu;
 
 /*
@@ -130,3 +142,13 @@ unsigned long backup_mode_resume(void)
 
 	return pm_bu->resume;
 }
+
+#ifdef CONFIG_PUBL
+void backup_get_calibration_data(unsigned int *data, unsigned int len)
+{
+	int i;
+
+	for (i = 0; i < len && i < BACKUP_DDR_PHY_CALIBRATION; i++)
+		data[i] = pm_bu->ddr_phy_calibration[i];
+}
+#endif
