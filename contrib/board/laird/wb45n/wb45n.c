@@ -77,7 +77,7 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 			| AT91C_DDRC2_TMRD_(2));	/* 2 clock cycles */
 
 	ddramc_config->t1pr = (AT91C_DDRC2_TXP_(2)	/*  2 clock cycles */
-			| AT91C_DDRC2_TXSRD_(0)		/* 0 clock cycles */
+			| AT91C_DDRC2_TXSRD_(15)	/* 15 * 7.5 = 142.5 ns*/
 			| AT91C_DDRC2_TXSNR_(15)	/* 15 * 7.5 = 142.5 ns*/
 			| AT91C_DDRC2_TRFC_(10));	/* 10 * 7.5 = 135 ns */
 
