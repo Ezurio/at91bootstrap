@@ -66,7 +66,7 @@ static void ddramc_reg_config(struct ddramc_register *ddramc_config)
 				| AT91C_DDRC2_OCD_EXIT	/* OCD(0) */
 				);   /* Unaligned access is NOT supported */
 
-	/* Timing for MT46H16M32LF (5 & 6) */
+	/* Timing for W949D2DB and MT46H16M32LF (5 & 6) */
 	/*
 	 * The SDRAM device requires a refresh of all rows at least every 64ms.
 	 * ((64ms) / 8192) * 132 MHz = 1031 i.e. 0x407
