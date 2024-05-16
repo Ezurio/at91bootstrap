@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2020,Laird Connectivity
+ * Copyright (c) 2008-2020, Ezurio
  */
 #ifndef __WB45N_H__
 #define __WB45N_H__
