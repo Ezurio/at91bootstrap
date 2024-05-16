@@ -1,7 +1,7 @@
 /*
  * WB50N Module support
  *
- * Copyright (c) 2008-2020, Laird Connectivity
+ * Copyright (c) 2008-2020, Ezurio
  */
 #ifndef __WB50N_H__
 #define __WB50N_H__

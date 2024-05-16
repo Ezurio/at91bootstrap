@@ -1,7 +1,7 @@
 /*
  * WB45N Module support
  *
- * Copyright (c) 2008-2020, Laird Connectivity
+ * Copyright (c) 2008-2020, Ezurio
  */
 #include "common.h"
 #include "hardware.h"
