@@ -49,7 +49,7 @@ else
 	BUILD_DATE := $(shell $(DATE) "$(DATE_FMT)")
 endif
 endif
-LRD_BLD_NUMBER := 12.0.0.5
+LRD_BLD_NUMBER := 12.0.0.6
 VERSION := 3.10.4
 REVISION := $(LRD_BLD_NUMBER)
 ifdef NIX_SHELL
